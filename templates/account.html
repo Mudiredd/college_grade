@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Account — SR & BGNR College Tracker</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', sans-serif; background: #0f0f1a; color: #fff; min-height: 100vh; }
+
+    .topbar {
+      background: #1a1a2e; padding: 16px 24px;
+      display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 1px solid #ffffff11;
+    }
+    .topbar-title { color: #00d4ff; font-weight: bold; font-size: 1.1rem; }
+    .topbar-links { display: flex; gap: 16px; align-items: center; }
+    .topbar-links a { color: #aaa; font-size: 0.85rem; text-decoration: none; }
+    .topbar-links a:hover { color: #fff; }
+
+    .container { max-width: 860px; margin: 0 auto; padding: 36px 20px; }
+    .section { margin-bottom: 32px; }
+    .section-title {
+      font-size: 1rem; font-weight: bold; color: #aaa;
+      text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 14px;
+    }
+
+    .profile-card {
+      background: #1a1a2e; border: 1px solid #ffffff11;
+      border-radius: 16px; padding: 24px;
+      display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+    }
+    .avatar {
+      width: 56px; height: 56px; border-radius: 50%;
+      background: linear-gradient(135deg, #00d4ff, #0077ff);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem; font-weight: bold; color: #fff; flex-shrink: 0;
+    }
+    .profile-info h3 { font-size: 1.1rem; margin-bottom: 4px; }
+    .profile-info p  { color: #aaa; font-size: 0.85rem; }
+
+    .sub-card {
+      background: #1a1a2e; border: 1px solid #ffffff11;
+      border-radius: 16px; padding: 24px;
+    }
+    .sub-active { border-color: #00e67633; background: #00e67608; }
+
+    .sub-header {
+      display: flex; justify-content: space-between;
+      align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 14px;
+    }
+    .sub-badge { padding: 4px 14px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; }
+    .badge-active   { background: #00e67622; color: #00e676; }
+    .badge-inactive { background: #ff525222; color: #ff5252; }
+    .sub-details { color: #aaa; font-size: 0.85rem; line-height: 2; }
+    .sub-details strong { color: #fff; }
+
+    .usage-bar-wrap { margin-top: 14px; }
+    .usage-label {
+      display: flex; justify-content: space-between;
+      font-size: 0.8rem; color: #aaa; margin-bottom: 6px;
+    }
+    .usage-bar-bg { background: #ffffff11; border-radius: 999px; height: 8px; overflow: hidden; }
+    .usage-bar-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #00d4ff, #0077ff); }
+
+    .btn-subscribe {
+      display: inline-block; margin-top: 16px; padding: 10px 24px;
+      border-radius: 10px; border: none;
+      background: linear-gradient(135deg, #00d4ff, #0077ff);
+      color: #fff; font-size: 0.9rem; font-weight: bold;
+      text-decoration: none; transition: opacity 0.3s;
+    }
+    .btn-subscribe:hover { opacity: 0.85; }
+
+    .data-table {
+      width: 100%; border-collapse: collapse; background: #1a1a2e;
+      border-radius: 14px; overflow: hidden; border: 1px solid #ffffff11;
+    }
+    .data-table th {
+      text-align: left; padding: 12px 16px; background: #ffffff08;
+      color: #aaa; font-size: 0.78rem; text-transform: uppercase;
+    }
+    .data-table td {
+      padding: 12px 16px; border-top: 1px solid #ffffff08;
+      font-size: 0.88rem; color: #ccc;
+    }
+    .data-table tr:first-child td { border-top: none; }
+
+    .status-badge { padding: 3px 10px; border-radius: 8px; font-size: 0.78rem; font-weight: bold; }
+    .status-pending  { background: #ffd74022; color: #ffd740; }
+    .status-approved { background: #00e67622; color: #00e676; }
+    .status-rejected { background: #ff525222; color: #ff5252; }
+
+    .empty-state {
+      text-align: center; padding: 32px; color: #aaa; font-size: 0.88rem;
+      background: #1a1a2e; border-radius: 14px; border: 1px solid #ffffff11;
+    }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-title">🎓 SR & BGNR College Tracker</div>
+  <div class="topbar-links">
+    <a href="{{ url_for('index') }}">🔍 Search</a>
+    <a href="{{ url_for('subscribe') }}">💳 Subscribe</a>
+    <a href="{{ url_for('auth.logout') }}">Logout</a>
+  </div>
+</div>
+
+<div class="container">
+
+  <div class="section">
+    <div class="section-title">Profile</div>
+    <div class="profile-card">
+      <div class="avatar">{{ current_user.name[0].upper() }}</div>
+      <div class="profile-info">
+        <h3>{{ current_user.name }}</h3>
+        <p>{{ current_user.email }} &nbsp;·&nbsp; Reg No: {{ current_user.regd_no }}</p>
+        <p>Member since {{ current_user.created_at.strftime('%d %b %Y') }}</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Subscription</div>
+    <div class="sub-card {{ 'sub-active' if sub else '' }}">
+      <div class="sub-header">
+        <strong style="font-size:1rem;">
+          {% if sub %}
+            {{ '📅 Monthly Plan' if sub.plan == 'monthly' else '♾️ Lifetime Plan' }}
+          {% else %}
+            No Active Subscription
+          {% endif %}
+        </strong>
+        <span class="sub-badge {{ 'badge-active' if sub else 'badge-inactive' }}">
+          {{ '✅ Active' if sub else '❌ Inactive' }}
+        </span>
+      </div>
+
+      {% if sub %}
+        <div class="sub-details">
+          {% if sub.end_date %}
+            Expires: <strong>{{ sub.end_date.strftime('%d %b %Y') }}</strong>
+          {% else %}
+            Access: <strong>Lifetime</strong>
+          {% endif %}
+          <br>
+          Today's searches: <strong>{{ searches_today }} / 5</strong>
+        </div>
+        <div class="usage-bar-wrap">
+          <div class="usage-label">
+            <span>Daily Usage</span>
+            <span>{{ searches_today }}/5</span>
+          </div>
+          <div class="usage-bar-bg">
+            <div class="usage-bar-fill" id="usageBar"></div>
+          </div>
+        </div>
+      {% else %}
+        <p style="color:#aaa; font-size:0.85rem; margin-bottom:14px;">
+          Subscribe to access your academic results.
+        </p>
+        <a href="{{ url_for('subscribe') }}" class="btn-subscribe">Get Subscription</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Recent Searches</div>
+    {% if searches %}
+      <table class="data-table">
+        <thead>
+          <tr><th>#</th><th>Registration No</th><th>Searched At</th></tr>
+        </thead>
+        <tbody>
+          {% for s in searches %}
+            <tr>
+              <td style="color:#555;">{{ loop.index }}</td>
+              <td>{{ s.regd_no }}</td>
+              <td>{{ s.searched_at.strftime('%d %b %Y, %I:%M %p') }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="empty-state">No searches yet.</div>
+    {% endif %}
+  </div>
+
+  <div class="section">
+    <div class="section-title">Payment History</div>
+    {% if payments %}
+      <table class="data-table">
+        <thead>
+          <tr><th>#</th><th>Plan</th><th>Amount</th><th>UTR</th><th>Status</th><th>Date</th></tr>
+        </thead>
+        <tbody>
+          {% for p in payments %}
+            <tr>
+              <td style="color:#555;">{{ loop.index }}</td>
+              <td>{{ p.plan | capitalize }}</td>
+              <td>₹{{ p.amount | int }}</td>
+              <td style="font-family:monospace; font-size:0.82rem;">{{ p.utr }}</td>
+              <td>
+                <span class="status-badge status-{{ p.status }}">
+                  {% if p.status == 'pending' %}⏳ Pending
+                  {% elif p.status == 'approved' %}✅ Approved
+                  {% else %}❌ Rejected{% endif %}
+                </span>
+              </td>
+              <td>{{ p.submitted_at.strftime('%d %b %Y') }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="empty-state">No payments submitted yet.</div>
+    {% endif %}
+  </div>
+
+</div>
+
+<script>
+  const pct = Math.min({{ searches_today }} * 20, 100);
+  document.getElementById("usageBar").style.width = pct + "%";
+</script>
+</body>
+</html>

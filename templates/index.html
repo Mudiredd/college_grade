@@ -1,0 +1,1719 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+  <meta charset="UTF-8" />
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  />
+
+  <title>SR & BGNR College Tracker</title>
+
+  <script src="https://unpkg.com/@lottiefiles/lottie-player@1/dist/lottie-player.js"></script>
+
+  <style>
+
+    *{
+      margin:0;
+      padding:0;
+      box-sizing:border-box;
+    }
+
+    body{
+      font-family:'Segoe UI',sans-serif;
+      background:#0f0f1a;
+      color:#fff;
+      min-height:100vh;
+    }
+
+    a{
+      text-decoration:none;
+    }
+
+    /* =========================
+       TOPBAR
+    ========================== */
+
+    .topbar{
+      background:#1a1a2e;
+      padding:14px 24px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      border-bottom:1px solid #ffffff10;
+      flex-wrap:wrap;
+      gap:12px;
+    }
+
+    .topbar-title{
+      color:#00d4ff;
+      font-weight:bold;
+      font-size:1rem;
+    }
+
+    .topbar-right{
+      display:flex;
+      align-items:center;
+      gap:18px;
+      flex-wrap:wrap;
+    }
+
+    .topbar-right a{
+      color:#aaa;
+      font-size:.88rem;
+    }
+
+    .topbar-right a:hover{
+      color:#fff;
+    }
+
+    .searches-left-green{
+      color:#00e676;
+      font-size:.85rem;
+    }
+
+    .searches-left-red{
+      color:#ff5252;
+      font-size:.85rem;
+    }
+
+    /* =========================
+       HERO
+    ========================== */
+
+    .hero{
+      padding:60px 20px 40px;
+      text-align:center;
+      background:linear-gradient(
+        135deg,
+        #1a1a2e,
+        #16213e
+      );
+    }
+
+    .hero h1{
+      color:#00d4ff;
+      font-size:2.5rem;
+      margin-bottom:12px;
+    }
+
+    .hero p{
+      color:#aaa;
+      max-width:750px;
+      margin:auto;
+      line-height:1.7;
+    }
+
+    /* =========================
+       SEARCH
+    ========================== */
+
+    .search-box{
+      display:flex;
+      justify-content:center;
+      gap:14px;
+      padding:30px 20px;
+      flex-wrap:wrap;
+    }
+
+    .search-box input{
+      width:350px;
+      max-width:100%;
+      padding:15px 18px;
+      border:none;
+      border-radius:14px;
+      background:#1a1a2e;
+      color:#fff;
+      border:2px solid #00d4ff33;
+      font-size:1rem;
+    }
+
+    .search-box input:focus{
+      outline:none;
+      border-color:#00d4ff;
+    }
+
+    .btn{
+      border:none;
+      padding:14px 24px;
+      border-radius:14px;
+      font-weight:bold;
+      cursor:pointer;
+      color:#fff;
+      transition:.2s;
+    }
+
+    .btn:hover{
+      transform:translateY(-2px);
+    }
+
+    .search-btn{
+      background:linear-gradient(
+        135deg,
+        #00d4ff,
+        #0077ff
+      );
+    }
+
+    .cancel-btn{
+      background:linear-gradient(
+        135deg,
+        #ff5252,
+        #c62828
+      );
+      display:none;
+    }
+
+    .download-btn{
+      background:linear-gradient(
+        135deg,
+        #00c853,
+        #009624
+      );
+      display:none;
+    }
+
+    /* =========================
+       LOADING
+    ========================== */
+
+    .loading{
+      max-width:900px;
+      margin:auto;
+      display:none;
+      padding:20px;
+    }
+
+    .spinner{
+      width:50px;
+      height:50px;
+      border-radius:50%;
+      border:5px solid #00d4ff33;
+      border-top:5px solid #00d4ff;
+      margin:0 auto 20px;
+      animation:spin 1s linear infinite;
+    }
+
+    @keyframes spin{
+      to{
+        transform:rotate(360deg);
+      }
+    }
+
+    #currentStep{
+      text-align:center;
+      color:#00d4ff;
+      font-weight:bold;
+      margin-bottom:16px;
+    }
+
+    .progress-container{
+      width:100%;
+      height:20px;
+      border-radius:20px;
+      overflow:hidden;
+      background:#1a1a2e;
+      border:1px solid #ffffff10;
+      margin-bottom:25px;
+    }
+
+    .progress-bar{
+      width:0%;
+      height:100%;
+      background:linear-gradient(
+        90deg,
+        #00d4ff,
+        #0077ff
+      );
+      transition:width 3s linear;
+    }
+
+    .steps{
+      margin-top:20px;
+    }
+
+    .step-item{
+      background:#ffffff08;
+      border:1px solid #ffffff10;
+      padding:12px 16px;
+      border-radius:12px;
+      margin-bottom:10px;
+      color:#ddd;
+      font-size:.92rem;
+    }
+
+    /* =========================
+       ERROR
+    ========================== */
+
+    .error-msg{
+      max-width:900px;
+      margin:20px auto;
+      padding:16px;
+      border-radius:12px;
+      background:#ff525220;
+      border:1px solid #ff5252;
+      color:#ff8a80;
+      display:none;
+      text-align:center;
+      font-weight:bold;
+    }
+
+    /* =========================
+       DASHBOARD
+    ========================== */
+
+    .dashboard{
+      max-width:1200px;
+      margin:auto;
+      padding:20px;
+      display:none;
+    }
+
+    .summary-box{
+      display:grid;
+      grid-template-columns:
+      repeat(auto-fit,minmax(220px,1fr));
+      gap:20px;
+      margin-bottom:30px;
+    }
+
+    .summary-card{
+      background:#1a1a2e;
+      border:1px solid #ffffff10;
+      border-radius:18px;
+      padding:22px;
+      text-align:center;
+    }
+
+    .summary-card h3{
+      color:#00d4ff;
+      margin-bottom:10px;
+    }
+
+    .semester-card{
+      background:#1a1a2e;
+      border-radius:18px;
+      padding:22px;
+      margin-bottom:25px;
+      border:1px solid #ffffff10;
+      overflow:auto;
+    }
+
+    .semester-title{
+      color:#00d4ff;
+      margin-bottom:10px;
+      font-size:1.4rem;
+    }
+
+    .exam-name{
+      color:#aaa;
+      margin-bottom:18px;
+    }
+
+    .subjects-table{
+      width:100%;
+      border-collapse:collapse;
+    }
+
+    .subjects-table th{
+      background:#00d4ff;
+      color:#000;
+      padding:12px;
+      text-align:left;
+    }
+
+    .subjects-table td{
+      padding:12px;
+      border-bottom:1px solid #ffffff10;
+      font-size:.92rem;
+    }
+
+    .subjects-table tr:hover{
+      background:#ffffff06;
+    }
+
+    .pass{
+      color:#00e676;
+      font-weight:bold;
+    }
+
+    .fail{
+      color:#ff5252;
+      font-weight:bold;
+    }
+
+    /* =========================
+       DOWNLOADS
+    ========================== */
+
+    .downloads-section{
+      max-width:1200px;
+      margin:40px auto;
+      padding:20px;
+    }
+
+    .downloads-title{
+      color:#00d4ff;
+      margin-bottom:20px;
+    }
+
+    .downloads-grid{
+      display:grid;
+      grid-template-columns:
+      repeat(auto-fit,minmax(250px,1fr));
+      gap:20px;
+    }
+
+    .download-card{
+      background:#1a1a2e;
+      border-radius:16px;
+      padding:20px;
+      border:1px solid #ffffff10;
+    }
+
+    .download-card h4{
+      color:#00d4ff;
+      margin-bottom:10px;
+    }
+
+    .download-card p{
+      color:#aaa;
+      margin-bottom:15px;
+      font-size:.9rem;
+    }
+
+    .download-card button{
+      width:100%;
+      padding:12px;
+      border:none;
+      border-radius:10px;
+      background:#00d4ff;
+      color:#000;
+      font-weight:bold;
+      cursor:pointer;
+    }
+
+    /* =========================
+       ANIMATIONS
+    ========================== */
+
+    .spinner{
+      box-shadow:0 0 20px #00d4ff33;
+      animation:spin 1s linear infinite, pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse{
+      0%,100%{box-shadow:0 0 10px #00d4ff22;}
+      50%{box-shadow:0 0 30px #00d4ff66;}
+    }
+
+    .progress-bar{
+      background:linear-gradient(90deg,#00d4ff,#0077ff,#00d4ff);
+      background-size:200% 100%;
+      animation:shimmer 2s linear infinite;
+    }
+
+    @keyframes shimmer{
+      0%{background-position:200% 0;}
+      100%{background-position:-200% 0;}
+    }
+
+    .dashboard{
+      animation:fadeIn 1s ease;
+    }
+
+    .summary-card{
+      animation:fadeInUp 1s ease forwards;
+      opacity:0;
+    }
+
+    .summary-card:nth-child(1){animation-delay:.3s;}
+    .summary-card:nth-child(2){animation-delay:.6s;}
+    .summary-card:nth-child(3){animation-delay:.9s;}
+    .summary-card:nth-child(4){animation-delay:1.2s;}
+
+    .semester-card{
+      animation:fadeInUp 1.2s ease forwards;
+      opacity:0;
+    }
+
+    .subjects-table tr{
+      animation:fadeIn .8s ease forwards;
+      opacity:0;
+    }
+
+    .subjects-table tr:nth-child(1){animation-delay:.1s;}
+    .subjects-table tr:nth-child(2){animation-delay:.25s;}
+    .subjects-table tr:nth-child(3){animation-delay:.4s;}
+    .subjects-table tr:nth-child(4){animation-delay:.55s;}
+    .subjects-table tr:nth-child(5){animation-delay:.7s;}
+    .subjects-table tr:nth-child(6){animation-delay:.85s;}
+    .subjects-table tr:nth-child(7){animation-delay:1s;}
+    .subjects-table tr:nth-child(8){animation-delay:1.15s;}
+    .subjects-table tr:nth-child(9){animation-delay:1.3s;}
+    .subjects-table tr:nth-child(10){animation-delay:1.45s;}
+
+    .step-item{
+      animation:fadeInUp .8s ease forwards;
+      opacity:0;
+    }
+
+    @keyframes fadeIn{
+      from{opacity:0;}
+      to{opacity:1;}
+    }
+
+    @keyframes fadeInUp{
+      from{opacity:0;transform:translateY(30px) scale(.97);}
+      to{opacity:1;transform:translateY(0) scale(1);}
+    }
+
+    /* =========================
+       SCANNING BADGE
+    ========================== */
+
+    .scanning-badge{
+      text-align:center;
+      color:#00d4ff;
+      font-weight:bold;
+      font-size:1.1rem;
+      margin-bottom:24px;
+      animation:pulseText 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulseText{
+      0%,100%{opacity:1;}
+      50%{opacity:.5;}
+    }
+
+    /* =========================
+       TIMELINE STEPS
+    ========================== */
+
+    .timeline{
+      position:relative;
+      padding-left:28px;
+    }
+
+    .timeline::before{
+      content:"";
+      position:absolute;
+      left:8px;
+      top:4px;
+      bottom:4px;
+      width:2px;
+      background:#ffffff15;
+    }
+
+    .step-item{
+      position:relative;
+      padding:10px 14px;
+      margin-bottom:6px;
+      border-radius:10px;
+      background:#ffffff08;
+      font-size:.88rem;
+      color:#ccc;
+      animation:fadeInUp .5s ease forwards;
+      opacity:0;
+    }
+
+    .step-item::before{
+      content:"○";
+      position:absolute;
+      left:-20px;
+      top:50%;
+      transform:translateY(-50%);
+      font-size:.7rem;
+      color:#ffffff30;
+    }
+
+    .step-item:first-child::before{
+      content:"●";
+      color:#00d4ff;
+      font-size:.85rem;
+      text-shadow:0 0 8px #00d4ff66;
+    }
+
+    /* =========================
+       PANDA WALKER
+    ========================== */
+
+    .panda-track{
+      position:relative;
+      height:56px;
+      margin:0 auto 2px;
+      max-width:900px;
+    }
+
+    .panda-walker{
+      position:absolute;
+      top:0;
+      left:0%;
+      transform:translateX(-50%);
+      transition:left 3s linear;
+      z-index:2;
+      pointer-events:none;
+    }
+
+    .scanning-bar .panda-track{
+      max-width:100%;
+      height:48px;
+    }
+
+    .scanning-bar .panda-walker lottie-player{
+      width:44px !important;
+      height:44px !important;
+      transform:scaleX(-1) !important;
+    }
+
+    /* =========================
+       SCANNING BAR
+    ========================== */
+
+    .scanning-bar{
+      background:#00d4ff11;
+      border:1px solid #00d4ff33;
+      border-radius:14px;
+      padding:16px 20px;
+      margin-bottom:24px;
+      animation:fadeInUp .5s ease forwards;
+    }
+
+    .scanning-bar-header{
+      font-size:.95rem;
+      color:#00d4ff;
+      font-weight:bold;
+      margin-bottom:6px;
+      animation:pulseText 1.5s ease-in-out infinite;
+    }
+
+    .scanning-bar-sub{
+      font-size:.82rem;
+      color:#88d;
+      margin-bottom:10px;
+    }
+
+    .scanning-bar-track{
+      height:6px;
+      border-radius:10px;
+      background:#ffffff10;
+      overflow:hidden;
+    }
+
+    .scanning-bar-fill{
+      height:100%;
+      border-radius:10px;
+      background:linear-gradient(90deg,#00d4ff,#0077ff);
+      transition:width 3s linear;
+    }
+
+    /* =========================
+       SKELETON CARDS
+    ========================== */
+
+    .skeleton-grid{
+      display:grid;
+      grid-template-columns:
+      repeat(auto-fit,minmax(280px,1fr));
+      gap:20px;
+      transition:opacity .4s;
+    }
+
+    .skeleton-card{
+      background:#1a1a2e;
+      border:1px solid #ffffff08;
+      border-radius:18px;
+      padding:22px;
+      overflow:hidden;
+      position:relative;
+    }
+
+    .skeleton-card::after{
+      content:"";
+      position:absolute;
+      inset:0;
+      background:linear-gradient(
+        90deg,
+        transparent,
+        #ffffff05,
+        transparent
+      );
+      background-size:200% 100%;
+      animation:shimmer 2s linear infinite;
+    }
+
+    .skeleton-title{
+      height:20px;
+      width:60%;
+      background:#ffffff10;
+      border-radius:6px;
+      margin-bottom:18px;
+    }
+
+    .skeleton-row{
+      height:14px;
+      width:100%;
+      background:#ffffff08;
+      border-radius:4px;
+      margin-bottom:12px;
+    }
+
+    .skeleton-row.short{
+      width:45%;
+    }
+
+  </style>
+
+</head>
+
+<body>
+
+<!-- =========================
+     TOPBAR
+========================= -->
+
+<div class="topbar">
+
+  <div class="topbar-title">
+    🎓 SR & BGNR College Tracker
+  </div>
+
+  <div class="topbar-right">
+
+    <span>
+      👋 {{ user.name }}
+    </span>
+
+    <span class="{{ 'searches-left-red' if searches_left == 0 else 'searches-left-green' }}">
+      {{ searches_left }} searches left today
+    </span>
+
+    <a href="{{ url_for('account') }}">
+      Account
+    </a>
+
+    <!-- ✅ ONLY SHOW IF NOT SUBSCRIBED -->
+    {% if not sub %}
+    <a href="{{ url_for('subscribe') }}">
+      Subscribe
+    </a>
+    {% endif %}
+
+    <a href="#downloads">
+      Downloads
+    </a>
+
+    <a href="{{ url_for('auth.logout') }}">
+      Logout
+    </a>
+
+  </div>
+
+</div>
+
+<!-- =========================
+     HERO
+========================= -->
+
+<div class="hero">
+
+  <h1>
+    🎓 SR & BGNR College Tracker
+  </h1>
+
+  <p>
+    Search semester results, track academic progress,
+    and download professional PDF reports instantly.
+  </p>
+
+</div>
+
+<!-- =========================
+     SEARCH
+========================= -->
+
+<div class="search-box">
+
+  <input
+    type="text"
+    id="regdNo"
+    placeholder="Enter Registration Number..."
+  />
+
+  <button
+    class="btn search-btn"
+    id="searchBtn"
+    onclick="fetchResults()"
+  >
+    Search
+  </button>
+
+  <button
+    class="btn cancel-btn"
+    id="cancelBtn"
+    onclick="cancelSearch()"
+  >
+    Cancel
+  </button>
+
+  <button
+    class="btn download-btn"
+    id="downloadBtn"
+    onclick="downloadPDF()"
+  >
+    Download PDF
+  </button>
+
+</div>
+
+<!-- =========================
+     LOADING
+========================= -->
+
+<div
+  class="loading"
+  id="loading"
+>
+
+  <div class="scanning-badge" id="scanningBadge">
+    Starting...
+  </div>
+
+  <div class="panda-track">
+    <div class="panda-walker" id="pandaLoading">
+        <lottie-player
+        src="{{ url_for('static', filename='animations/Panda traveling.json') }}"
+        background="transparent"
+        speed="1.2"
+        loop
+        autoplay
+        style="width:56px;height:56px;transform:scaleX(-1)"
+      ></lottie-player>
+    </div>
+  </div>
+
+  <div class="progress-container">
+    <div
+      class="progress-bar"
+      id="progressBar"
+    ></div>
+  </div>
+
+  <div class="timeline" id="stepsContainer"></div>
+
+</div>
+
+<!-- ERROR -->
+
+<div
+  class="error-msg"
+  id="errorMsg"
+></div>
+
+<!-- DASHBOARD -->
+
+<div
+  class="dashboard"
+  id="dashboard"
+></div>
+
+<!-- =========================
+     DOWNLOADS
+========================= -->
+
+<div
+  class="downloads-section"
+  id="downloads"
+>
+
+  <h2 class="downloads-title">
+    📥 Download History
+  </h2>
+
+  <div
+    class="downloads-grid"
+    id="downloadsGrid"
+  >
+
+    <div class="download-card">
+
+      <h4>
+        No Downloads Yet
+      </h4>
+
+      <p>
+        Your downloaded PDF reports will appear here.
+      </p>
+
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+
+let abortController = null;
+
+let latestData = null;
+
+let latestRegdNo = null;
+
+let allData = {};
+
+let scanningTarget = 2;
+
+/* =========================
+   FETCH RESULTS
+========================= */
+
+async function fetchResults(){
+
+  const regdNo =
+    document
+    .getElementById("regdNo")
+    .value
+    .trim();
+
+  if(!regdNo){
+
+    alert(
+      "Please enter Registration Number"
+    );
+
+    return;
+  }
+
+  latestRegdNo = regdNo;
+
+  resetUI();
+
+  document
+    .getElementById("loading")
+    .style.display = "block";
+
+  document
+    .getElementById("searchBtn")
+    .style.display = "none";
+
+  document
+    .getElementById("cancelBtn")
+    .style.display = "inline-block";
+
+  showSkeletons();
+
+  abortController = new AbortController();
+
+  try{
+
+    const res = await fetch(
+      "/get_results",
+      {
+        method:"POST",
+
+        headers:{
+          "Content-Type":"application/json"
+        },
+
+        body:JSON.stringify({
+          regd_no:regdNo
+        }),
+
+        signal:abortController.signal
+      }
+    );
+
+    const reader = res.body.getReader();
+
+    const decoder = new TextDecoder();
+
+    while(true){
+
+      const {done,value} =
+        await reader.read();
+
+      if(done) break;
+
+      const chunk =
+        decoder.decode(value);
+
+      const lines =
+        chunk.split("\n");
+
+      for(const line of lines){
+
+        if(
+          !line.startsWith("data: ")
+        ) continue;
+
+        try{
+
+          const event =
+            JSON.parse(line.slice(6));
+
+          /* STEP */
+
+          if(event.type === "step"){
+
+            document
+              .getElementById("scanningBadge")
+              .textContent =
+              event.message;
+
+            addStep(event.message);
+          }
+
+          /* PROGRESS */
+
+          if(event.type === "progress"){
+
+            document
+              .getElementById("scanningBadge")
+              .textContent =
+              event.message;
+
+            document
+              .getElementById("progressBar")
+              .style.width =
+              event.progress + "%";
+
+            const pct = event.progress;
+
+            const pandaLoading =
+              document.getElementById(
+                "pandaLoading"
+              );
+
+            if(pandaLoading)
+              pandaLoading.style.left =
+                pct + "%";
+
+            const pandaScanning =
+              document.getElementById(
+                "pandaScanning"
+              );
+
+            if(pandaScanning)
+              pandaScanning.style.left =
+                pct + "%";
+
+            addStep(event.message);
+
+            updateScanningBar(
+              event.message,
+              pct,
+              scanningTarget
+            );
+          }
+
+          /* SEMESTER — incremental result */
+
+          if(event.type === "semester"){
+
+            allData[String(event.semester)] =
+              event.data;
+
+            removeSkeletons();
+
+            renderDashboard(allData);
+
+            document
+              .getElementById("loading")
+              .style.display = "none";
+
+            document
+              .getElementById("dashboard")
+              .style.display = "block";
+
+            scanningTarget =
+              event.semester + 1;
+
+            updateScanningBar(
+              "",
+              0,
+              scanningTarget
+            );
+          }
+
+          /* SEARCH COUNT */
+
+          if(
+            event.type ===
+            "searches_update"
+          ){
+
+            updateSearchCount(
+              event.searches_left
+            );
+          }
+
+          /* DONE */
+
+          if(event.type === "done"){
+
+            latestData =
+              event.data;
+
+            allData = event.data;
+
+            removeScanningBar();
+
+            document
+              .getElementById("loading")
+              .style.display =
+              "none";
+
+            document
+              .getElementById("dashboard")
+              .style.display =
+              "block";
+
+            document
+              .getElementById("downloadBtn")
+              .style.display =
+              "inline-block";
+
+            renderDashboard(
+              event.data
+            );
+
+            resetButtons();
+          }
+
+          /* ERROR */
+
+          if(event.type === "error"){
+
+            showError(
+              event.message
+            );
+
+            resetButtons();
+          }
+
+        }catch(err){
+
+          console.error(err);
+        }
+      }
+    }
+
+  }catch(err){
+
+    if(
+      err.name === "AbortError"
+    ){
+
+      showError(
+        "🚫 Search Cancelled"
+      );
+
+    }else{
+
+      showError(
+        "Something went wrong"
+      );
+    }
+
+    resetButtons();
+  }
+}
+
+/* =========================
+   RENDER DASHBOARD
+========================= */
+
+function renderDashboard(data){
+
+  let html = "";
+
+  let totalSubjects = 0;
+
+  let totalCredits = 0;
+
+  let totalRemaining = 0;
+
+  for(let sem=1; sem<=8; sem++){
+
+    const semData =
+      data[String(sem)];
+
+    if(
+      !semData ||
+      !semData.subjects
+    ) continue;
+
+    const subjects =
+      semData.subjects;
+
+    totalSubjects +=
+      subjects.length;
+
+    totalRemaining +=
+      semData.remaining_supplies || 0;
+
+    subjects.forEach(s=>{
+
+      totalCredits += parseFloat(
+        s.credits || 0
+      );
+
+    });
+  }
+
+  /* SUMMARY */
+
+  html += `
+
+    <div class="summary-box">
+
+      <div class="summary-card">
+        <h3>Total Subjects</h3>
+        <p>${totalSubjects}</p>
+      </div>
+
+      <div class="summary-card">
+        <h3>Total Credits</h3>
+        <p>${totalCredits}</p>
+      </div>
+
+      <div class="summary-card">
+        <h3>Registration No</h3>
+        <p>${latestRegdNo}</p>
+      </div>
+
+      <div class="summary-card">
+        <h3>Supplies Left</h3>
+        <p style="color:${totalRemaining > 0 ? '#ff5252' : '#00e676'}">${totalRemaining}</p>
+      </div>
+
+    </div>
+
+  `;
+
+  /* SEMESTERS */
+
+  for(let sem=1; sem<=8; sem++){
+
+    const semData =
+      data[String(sem)];
+
+    if(
+      !semData ||
+      !semData.subjects ||
+      semData.subjects.length === 0
+    ) continue;
+
+    html += `
+
+      <div class="semester-card">
+
+        <div class="semester-title">
+          Semester ${sem}
+        </div>
+
+        <div class="exam-name">
+          Exam: ${semData.exam}
+          ${
+            semData.remaining_supplies > 0
+              ? `<span style="color:#ff5252;margin-left:12px;">${semData.remaining_supplies} suppl${semData.remaining_supplies > 1 ? 'ies' : 'y'} remaining</span>`
+              : `<span style="color:#00e676;margin-left:12px;">All cleared</span>`
+          }
+        </div>
+
+        <table class="subjects-table">
+
+          <tr>
+            <th>#</th>
+            <th>Subject</th>
+            <th>Grade</th>
+            <th>Credits</th>
+            <th>Status</th>
+          </tr>
+
+    `;
+
+    semData.subjects.forEach(
+      (s,index)=>{
+
+      let statusText = s.status.toUpperCase();
+      if (s.supply_passed) {
+        statusText = `PASS (Supply: ${s.supply_passed})`;
+      }
+
+      html += `
+
+        <tr>
+
+          <td>${index+1}</td>
+
+          <td>${s.subject}</td>
+
+          <td>${s.grade}</td>
+
+          <td>${s.credits}</td>
+
+          <td class="${s.status}">
+            ${statusText}
+          </td>
+
+        </tr>
+
+      `;
+    });
+
+    html += `
+
+        </table>
+
+    `;
+
+    /* supply history */
+    if (semData.supply_history && semData.supply_history.length > 0) {
+      html += `
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid #ffffff10;">
+          <span style="color:#ffd740;font-size:.85rem;font-weight:bold;">
+            Supply Attempts: ${semData.supply_history.map(sh => sh.exam).join(', ')}
+          </span>
+        </div>
+      `;
+    }
+
+    html += `</div>`;
+  }
+
+  document
+    .getElementById("dashboard")
+    .innerHTML = html;
+}
+
+/* =========================
+   DOWNLOAD PDF
+========================= */
+
+async function downloadPDF(){
+
+  if(!latestData){
+
+    alert("No data available");
+
+    return;
+  }
+
+  const formData =
+    new FormData();
+
+  formData.append(
+    "data",
+    JSON.stringify(latestData)
+  );
+
+  formData.append(
+    "regd_no",
+    latestRegdNo
+  );
+
+  try{
+
+    const response =
+      await fetch(
+        "/generate-pdf",
+        {
+          method:"POST",
+          body:formData
+        }
+      );
+
+    const blob =
+      await response.blob();
+
+    const url =
+      window.URL.createObjectURL(
+        blob
+      );
+
+    const a =
+      document.createElement("a");
+
+    a.href = url;
+
+    const filename =
+      `SR-BGNR-${latestRegdNo}.pdf`;
+
+    a.download = filename;
+
+    document.body.appendChild(a);
+
+    a.click();
+
+    a.remove();
+
+    saveDownloadHistory(
+      filename
+    );
+
+  }catch(err){
+
+    alert(
+      "PDF download failed"
+    );
+  }
+}
+
+/* =========================
+   DOWNLOAD HISTORY
+========================= */
+
+function saveDownloadHistory(filename){
+
+  let history = JSON.parse(
+    localStorage.getItem(
+      "downloads"
+    ) || "[]"
+  );
+
+  history.unshift({
+
+    filename:filename,
+
+    date:new Date()
+      .toLocaleString()
+
+  });
+
+  localStorage.setItem(
+    "downloads",
+    JSON.stringify(history)
+  );
+
+  renderDownloadHistory();
+}
+
+function renderDownloadHistory(){
+
+  const grid =
+    document.getElementById(
+      "downloadsGrid"
+    );
+
+  let history = JSON.parse(
+    localStorage.getItem(
+      "downloads"
+    ) || "[]"
+  );
+
+  if(history.length === 0){
+
+    grid.innerHTML = `
+
+      <div class="download-card">
+
+        <h4>No Downloads Yet</h4>
+
+        <p>
+          Your PDF downloads
+          appear here.
+        </p>
+
+      </div>
+
+    `;
+
+    return;
+  }
+
+  grid.innerHTML = "";
+
+  history.forEach(item=>{
+
+    grid.innerHTML += `
+
+      <div class="download-card">
+
+        <h4>
+          📄 ${item.filename}
+        </h4>
+
+        <p>
+          ${item.date}
+        </p>
+
+      </div>
+
+    `;
+  });
+}
+
+/* =========================
+   HELPERS
+========================= */
+
+function addStep(text){
+
+  const container =
+    document.getElementById(
+      "stepsContainer"
+    );
+
+  const div =
+    document.createElement("div");
+
+  div.className = "step-item";
+
+  div.textContent = text;
+
+  container.prepend(div);
+}
+
+function showError(msg){
+
+  document
+    .getElementById("loading")
+    .style.display = "none";
+
+  const err =
+    document
+    .getElementById("errorMsg");
+
+  err.textContent = msg;
+
+  err.style.display = "block";
+}
+
+function resetButtons(){
+
+  document
+    .getElementById("searchBtn")
+    .style.display =
+    "inline-block";
+
+  document
+    .getElementById("cancelBtn")
+    .style.display =
+    "none";
+}
+
+function resetUI(){
+
+  allData = {};
+
+  scanningTarget = 2;
+
+  document
+    .getElementById("dashboard")
+    .style.display =
+    "none";
+
+  document
+    .getElementById("dashboard")
+    .innerHTML = "";
+
+  document
+    .getElementById("errorMsg")
+    .style.display =
+    "none";
+
+  document
+    .getElementById("stepsContainer")
+    .innerHTML = "";
+
+  document
+    .getElementById("scanningBadge")
+    .textContent = "Starting...";
+
+  document
+    .getElementById("progressBar")
+    .style.width =
+    "0%";
+
+  document
+    .getElementById("downloadBtn")
+    .style.display =
+    "none";
+
+  removeScanningBar();
+}
+
+function cancelSearch(){
+
+  if(abortController){
+
+    abortController.abort();
+  }
+}
+
+function showSkeletons(){
+
+  const db =
+    document.getElementById(
+      "dashboard"
+    );
+
+  let html =
+    `<div class="skeleton-grid">`;
+
+  for(
+    let i=0; i<8; i++
+  ){
+    html += `
+      <div class="skeleton-card">
+        <div class="skeleton-title"></div>
+        <div class="skeleton-row"></div>
+        <div class="skeleton-row"></div>
+        <div class="skeleton-row short"></div>
+      </div>`;
+  }
+
+  html += `</div>`;
+
+  db.innerHTML = html;
+  db.style.display = "block";
+}
+
+function removeSkeletons(){
+
+  const grid =
+    document.querySelector(
+      ".skeleton-grid"
+    );
+
+  if(grid){
+    grid.style.opacity = "0";
+    grid.style.transition = "opacity .4s";
+    setTimeout(()=>grid.remove(), 400);
+  }
+}
+
+function updateScanningBar(msg, pct, target){
+
+  let bar =
+    document.getElementById(
+      "scanningBar"
+    );
+
+  if(!bar){
+
+    const db =
+      document.getElementById(
+        "dashboard"
+      );
+
+    const div =
+      document.createElement(
+        "div"
+      );
+
+    div.id = "scanningBar";
+    div.className = "scanning-bar";
+    div.innerHTML = `
+      <div class="scanning-bar-header">
+        ✅ Semester ${target-1} found — 🔍 Finding Semester ${target}...
+      </div>
+      <div class="panda-track">
+        <div class="panda-walker" id="pandaScanning">
+          <lottie-player
+            src="{{ url_for('static', filename='animations/Panda traveling.json') }}"
+            background="transparent"
+            speed="1.2"
+            loop
+            autoplay
+            style="width:56px;height:56px;transform:scaleX(-1)"
+          ></lottie-player>
+        </div>
+      </div>
+      <div class="scanning-bar-track">
+        <div class="scanning-bar-fill" style="width:${pct}%"></div>
+      </div>
+      <div class="scanning-bar-sub">
+        <span class="scanning-bar-msg">${msg}</span>
+      </div>
+    `;
+
+    db.insertBefore(
+      div,
+      db.firstChild
+    );
+
+  } else {
+
+    const header =
+      bar.querySelector(
+        ".scanning-bar-header"
+      );
+
+    if(header && target){
+      header.textContent =
+        `✅ Semester ${target-1} found — 🔍 Finding Semester ${target}...`;
+    }
+
+    const msgEl =
+      bar.querySelector(
+        ".scanning-bar-msg"
+      );
+
+    if(msgEl && msg) msgEl.textContent =
+      msg;
+
+    const fill =
+      bar.querySelector(
+        ".scanning-bar-fill"
+      );
+
+    if(fill) fill.style.width =
+      pct + "%";
+  }
+}
+
+function removeScanningBar(){
+
+  const bar =
+    document.getElementById(
+      "scanningBar"
+    );
+
+  if(bar){
+    bar.style.height = "0";
+    bar.style.padding = "0";
+    bar.style.overflow = "hidden";
+    bar.style.opacity = "0";
+    bar.style.transition =
+      "all .5s ease";
+    setTimeout(
+      ()=>bar.remove(), 500
+    );
+  }
+}
+
+function updateSearchCount(left){
+
+  const el =
+    document.querySelector(
+      ".searches-left-green, .searches-left-red"
+    );
+
+  if(!el) return;
+
+  el.textContent =
+    left + " searches left today";
+
+  el.className =
+    left === 0
+    ? "searches-left-red"
+    : "searches-left-green";
+}
+
+/* =========================
+   INITIAL LOAD
+========================= */
+
+renderDownloadHistory();
+
+</script>
+
+</body>
+
+</html>

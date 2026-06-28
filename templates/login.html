@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Login — SR & BGNR College Tracker</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0f0f1a;
+      color: #fff;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .card {
+      background: #1a1a2e;
+      border: 1px solid #ffffff11;
+      border-radius: 20px;
+      padding: 40px 36px;
+      width: 100%;
+      max-width: 420px;
+      margin: 20px;
+    }
+    .logo { text-align: center; margin-bottom: 28px; }
+    .logo h1 { font-size: 1.6rem; color: #00d4ff; margin-bottom: 6px; }
+    .logo p  { color: #aaa; font-size: 0.88rem; }
+    .flash-msg {
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .flash-error   { background: #ff525222; color: #ff5252; border: 1px solid #ff525244; }
+    .flash-success { background: #00e67622; color: #00e676; border: 1px solid #00e67644; }
+    .flash-info    { background: #00d4ff22; color: #00d4ff; border: 1px solid #00d4ff44; }
+    .form-group { margin-bottom: 18px; }
+    label { display: block; font-size: 0.82rem; color: #aaa; margin-bottom: 6px; }
+    input[type="email"],
+    input[type="password"] {
+      width: 100%;
+      padding: 13px 16px;
+      border-radius: 12px;
+      border: 2px solid #ffffff11;
+      background: #0f0f1a;
+      color: #fff;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border 0.3s;
+    }
+    input:focus { border-color: #00d4ff; }
+    .btn-primary {
+      width: 100%;
+      padding: 14px;
+      border-radius: 12px;
+      border: none;
+      background: linear-gradient(135deg, #00d4ff, #0077ff);
+      color: #fff;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: opacity 0.3s;
+      margin-top: 6px;
+    }
+    .btn-primary:hover { opacity: 0.85; }
+    .btn-admin {
+      width: 100%;
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid #ffd74033;
+      background: #ffd74011;
+      color: #ffd740;
+      font-size: 0.9rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.3s;
+      margin-top: 10px;
+      text-decoration: none;
+      display: block;
+      text-align: center;
+    }
+    .btn-admin:hover { background: #ffd74022; }
+    .links {
+      text-align: center;
+      margin-top: 20px;
+      font-size: 0.85rem;
+      color: #aaa;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .links a { color: #00d4ff; text-decoration: none; }
+    .links a:hover { text-decoration: underline; }
+    .divider { border: none; border-top: 1px solid #ffffff11; margin: 24px 0; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">
+    <h1>🎓 SR & BGNR</h1>
+    <p>College Tracker — Sign In</p>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="flash-msg flash-{{ category }}">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <form method="POST" action="{{ url_for('auth.login') }}">
+    <div class="form-group">
+      <label>Email Address</label>
+      <input type="email" name="email" placeholder="you@email.com" required />
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" name="password" placeholder="••••••••" required />
+    </div>
+    <button type="submit" class="btn-primary">Sign In</button>
+  </form>
+
+  <hr class="divider" />
+
+  <div class="links">
+    <span><a href="{{ url_for('auth.forgot_password') }}">Forgot password?</a></span>
+    <span>Don't have an account? <a href="{{ url_for('auth.signup') }}">Sign Up</a></span>
+  </div>
+
+  <a href="{{ url_for('admin.admin_login') }}" class="btn-admin">🔐 Admin</a>
+</div>
+</body>
+</html>

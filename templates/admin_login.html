@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Login — SR & BGNR</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', sans-serif; background: #0f0f1a;
+      color: #fff; min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .card {
+      background: #1a1a2e; border: 1px solid #ffffff11;
+      border-radius: 20px; padding: 40px 36px;
+      width: 100%; max-width: 400px; margin: 20px;
+    }
+    .logo { text-align: center; margin-bottom: 28px; }
+    .logo h1 { font-size: 1.5rem; color: #ffd740; margin-bottom: 6px; }
+    .logo p  { color: #aaa; font-size: 0.88rem; }
+    .flash-msg {
+      padding: 10px 14px; border-radius: 10px; font-size: 0.85rem;
+      margin-bottom: 20px; text-align: center;
+    }
+    .flash-error { background: #ff525222; color: #ff5252; border: 1px solid #ff525244; }
+    .form-group { margin-bottom: 18px; }
+    label { display: block; font-size: 0.82rem; color: #aaa; margin-bottom: 6px; }
+    input[type="email"], input[type="password"] {
+      width: 100%; padding: 13px 16px; border-radius: 12px;
+      border: 2px solid #ffffff11; background: #0f0f1a;
+      color: #fff; font-size: 0.95rem; outline: none; transition: border 0.3s;
+    }
+    input:focus { border-color: #ffd740; }
+    .btn-admin {
+      width: 100%; padding: 14px; border-radius: 12px; border: none;
+      background: linear-gradient(135deg, #ffd740, #ff9800);
+      color: #000; font-size: 1rem; font-weight: bold;
+      cursor: pointer; transition: opacity 0.3s; margin-top: 6px;
+    }
+    .btn-admin:hover { opacity: 0.85; }
+    .back { text-align: center; margin-top: 18px; font-size: 0.85rem; }
+    .back a { color: #aaa; text-decoration: none; }
+    .back a:hover { color: #fff; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">
+    <h1>🔐 Admin Panel</h1>
+    <p>SR & BGNR College Tracker</p>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="flash-msg flash-{{ category }}">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <form method="POST" action="{{ url_for('admin.admin_login') }}">
+    <div class="form-group">
+      <label>Admin Email</label>
+      <input type="email" name="email" placeholder="admin@email.com" required />
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" name="password" placeholder="••••••••" required />
+    </div>
+    <button type="submit" class="btn-admin">Sign In as Admin</button>
+  </form>
+
+  <div class="back"><a href="{{ url_for('auth.login') }}">← Back to main login</a></div>
+</div>
+</body>
+</html>
