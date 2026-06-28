@@ -46,6 +46,7 @@ _task_id_counter = 0
 _task_queue = []  # [(priority, counter, task_id, regd_no, password, user_id), ...]
 _task_queue_lock = threading.Lock()
 _task_state = {}  # task_id -> dict with status, progress, step, data, error
+_task_state_lock = threading.Lock()
 _task_cancel = set()  # task_ids marked for cancellation
 _executor = ThreadPoolExecutor(max_workers=7)
 _dispatcher_running = True
@@ -80,7 +81,13 @@ def get_user_plan(user):
 def check_search_limit(user):
     plan = get_user_plan(user)
     if plan == 'free':
-        return True, None
+        today = datetime.now().date()
+        cnt = SearchHistory.query.filter(
+            SearchHistory.user_id == user.id,
+            db.func.date(SearchHistory.searched_at) == today
+        ).count()
+        if cnt >= 1:
+            return False, 'Free trial daily limit reached (1/day)'
     if plan == 'basic':
         total = SearchHistory.query.filter_by(user_id=user.id).count()
         if total >= 1:
@@ -108,33 +115,36 @@ def _dispatcher():
     while _dispatcher_running:
         task = None
         with _task_queue_lock:
-            running = sum(1 for t in _task_state if _task_state[t]['status'] == 'running')
+            with _task_state_lock:
+                running = sum(1 for t in _task_state if _task_state[t]['status'] == 'running')
             if _task_queue and running < 7:
                 _task_queue.sort(key=lambda x: (x[0], x[1]))
                 running_count = running
                 if running_count < 7:
                     task = _task_queue.pop(0)
         if task:
-            priority, counter, task_id, regd_no, password, user_id = task
-            _task_state[task_id] = {
-                'status': 'running', 'progress': 0, 'step': 'queued',
-                'message': 'Starting...', 'semester': None, 'data': None, 'error': None,
-                'regd_no': regd_no, 'user_id': user_id
-            }
-            _task_state[task_id]['step'] = 'logging_in'
-            _task_state[task_id]['message'] = 'Logging in...'
-            _executor.submit(_run_scrape, task_id, regd_no, password, user_id)
+            priority, counter, task_id, regd_no, password, user_id, plan = task
+            with _task_state_lock:
+                _task_state[task_id] = {
+                    'status': 'running', 'progress': 0, 'step': 'queued',
+                    'message': 'Starting...', 'semester': None, 'data': None, 'error': None,
+                    'regd_no': regd_no, 'user_id': user_id
+                }
+                _task_state[task_id]['step'] = 'logging_in'
+                _task_state[task_id]['message'] = 'Logging in...'
+            _executor.submit(_run_scrape, task_id, regd_no, password, user_id, plan)
         else:
             time.sleep(0.5)
 
 
 def _update_task_state(task_id, **kwargs):
-    if task_id in _task_state:
-        _task_state[task_id].update(kwargs)
+    with _task_state_lock:
+        if task_id in _task_state:
+            _task_state[task_id].update(kwargs)
 
 
-def _run_scrape(task_id, regd_no, password, user_id):
-    logger.info(f"Task {task_id}: scraping {regd_no}")
+def _run_scrape(task_id, regd_no, password, user_id, plan):
+    logger.info(f"Task {task_id}: scraping {regd_no} (plan={plan})")
     try:
         if task_id in _task_cancel:
             _update_task_state(task_id, status='cancelled', message='Cancelled')
@@ -198,7 +208,6 @@ def _run_scrape(task_id, regd_no, password, user_id):
             return
 
         # ---- free trial: show only sem 1, skip PDF ----
-        plan = get_user_plan_for_id(user_id)
         if plan == 'free':
             merged = {'1': _merge_sem(all_data[1]["regular"], all_data[1]["supplies"])}
             _result_cache[regd_no] = (time.time(), merged)
@@ -216,7 +225,10 @@ def _run_scrape(task_id, regd_no, password, user_id):
                 _task_cancel.discard(task_id)
                 return
             exam_name = exam_names.get(exam_id, str(exam_id))
-            sems_to_check = range(1, min(highest_found + 2, 9))
+            start = 1 if highest_found % 2 == 1 else 2
+            sems_to_check = list(range(start, highest_found + 1, 2))
+            if highest_found + 1 <= 8:
+                sems_to_check.append(highest_found + 1)
             for sem in sems_to_check:
                 done += 1
                 progress = int((done / total) * 100)
@@ -243,22 +255,22 @@ def _run_scrape(task_id, regd_no, password, user_id):
 
         merged = {str(k): _merge_sem(v["regular"], v["supplies"]) if v["regular"] else None for k, v in all_data.items()}
         _result_cache[regd_no] = (time.time(), merged)
+        with _task_state_lock:
+            if task_id in _task_state:
+                _task_state[task_id]['semester'] = None
         _update_task_state(task_id, status='done', data=merged, progress=100)
         logger.info(f"Task {task_id}: done for {regd_no}")
 
+        # save search history only on success
+        with app.app_context():
+            from models import SearchHistory
+            hist = SearchHistory(user_id=user_id, regd_no=regd_no)
+            db.session.add(hist)
+            db.session.commit()
+
     except Exception as e:
         logger.error(f"Task {task_id}: error - {e}")
-        _update_task_state(task_id, status='error', error=str(e))
-
-
-def get_user_plan_for_id(user_id):
-    from models import Subscription
-    sub = Subscription.query.filter_by(
-        user_id=user_id, is_active=True
-    ).order_by(Subscription.id.desc()).first()
-    if not sub:
-        return 'free'
-    return sub.plan
+        _update_task_state(task_id, status='error', error='Scraping failed — please try again')
 
 
 # start dispatcher
@@ -364,6 +376,13 @@ def index():
     searches_today = get_searches_today(current_user)
 
     plan = get_user_plan(current_user)
+    limits = {'free': 1, 'basic': 1, 'monthly': 4, 'yearly': 8}
+    daily_limit = limits.get(plan, 0)
+    if plan == 'basic':
+        total = SearchHistory.query.filter_by(user_id=current_user.id).count()
+        searches_left = max(0, daily_limit - total)
+    else:
+        searches_left = max(0, daily_limit - searches_today)
 
     return render_template(
         'index.html',
@@ -371,7 +390,7 @@ def index():
         sub=sub,
         plan=plan,
         searches_today=searches_today,
-        searches_left=999
+        searches_left=searches_left
     )
 
 # ===================== SEARCH LIMIT =====================
@@ -490,58 +509,56 @@ def get_results():
     if not regd_no:
         return jsonify({'error': 'Registration number is required'}), 400
 
-    history = SearchHistory(user_id=current_user.id, regd_no=regd_no)
-    db.session.add(history)
-    db.session.commit()
-
     priority = get_plan_priority(current_user)
     task_id = _next_task_id()
+    counter = _task_id_counter
+    plan = get_user_plan(current_user)
 
     with _task_queue_lock:
-        queue_pos = len(_task_queue)
-        _task_queue.append((priority, task_id, task_id, regd_no, password, current_user.id))
-        if task_id not in _task_state:
-            _task_state[task_id] = {
-                'status': 'queued', 'progress': 0, 'step': 'queued',
-                'message': f'Position in queue: {queue_pos + 1}', 'semester': None,
-                'data': None, 'error': None, 'regd_no': regd_no, 'user_id': current_user.id
-            }
-        _task_state[task_id]['queue_position'] = queue_pos + 1
+        with _task_state_lock:
+            queue_pos = len(_task_queue)
+            _task_queue.append((priority, counter, task_id, regd_no, password, current_user.id, plan))
+            if task_id not in _task_state:
+                _task_state[task_id] = {
+                    'status': 'queued', 'progress': 0, 'step': 'queued',
+                    'message': f'Position in queue: {queue_pos + 1}', 'semester': None,
+                    'data': None, 'error': None, 'regd_no': regd_no, 'user_id': current_user.id
+                }
+            _task_state[task_id]['queue_position'] = queue_pos + 1
 
     return jsonify({'task_id': task_id})
 
 
 @app.route('/task_status/<task_id>')
 @login_required
-@limiter.limit("30 per minute")
+@limiter.limit("120 per minute")
 def task_status(task_id):
-    state = _task_state.get(task_id)
-    if not state:
-        return jsonify({'error': 'Task not found'}), 404
-
-    if state.get('user_id') != current_user.id and not current_user.is_admin:
-        return jsonify({'error': 'Forbidden'}), 403
-
-    resp = {k: state[k] for k in ('status', 'progress', 'step', 'message', 'semester', 'data', 'error')}
-    resp['queue_position'] = state.get('queue_position', 0)
+    with _task_state_lock:
+        state = _task_state.get(task_id)
+        if not state:
+            return jsonify({'error': 'Task not found'}), 404
+        if state.get('user_id') != current_user.id and not current_user.is_admin:
+            return jsonify({'error': 'Forbidden'}), 403
+        resp = {k: state[k] for k in ('status', 'progress', 'step', 'message', 'semester', 'data', 'error')}
+        resp['queue_position'] = state.get('queue_position', 0)
     return jsonify(resp)
 
 
 @app.route('/cancel_task/<task_id>', methods=['POST'])
 @login_required
-@limiter.limit("10 per minute")
+@limiter.limit("20 per minute")
 def cancel_task(task_id):
-    state = _task_state.get(task_id)
-    if not state:
-        return jsonify({'error': 'Task not found'}), 404
-    if state.get('user_id') != current_user.id and not current_user.is_admin:
-        return jsonify({'error': 'Forbidden'}), 403
-
     _task_cancel.add(task_id)
     with _task_queue_lock:
         _task_queue[:] = [t for t in _task_queue if t[2] != task_id]
-    if state['status'] in ('queued',):
-        state['status'] = 'cancelled'
+    with _task_state_lock:
+        state = _task_state.get(task_id)
+        if not state:
+            return jsonify({'error': 'Task not found'}), 404
+        if state.get('user_id') != current_user.id and not current_user.is_admin:
+            return jsonify({'error': 'Forbidden'}), 403
+        if state['status'] in ('queued',):
+            state['status'] = 'cancelled'
     return jsonify({'ok': True})
 
 
@@ -568,4 +585,4 @@ def create_admin():
 # ===================== RUN =====================
 if __name__ == "__main__":
     create_admin()
-    app.run(debug=True, threaded=True)
+    app.run(debug=False, threaded=True)

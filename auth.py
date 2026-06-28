@@ -24,12 +24,6 @@ def _validate_password(password):
     return None
 
 
-def _validate_regd_no(regd_no):
-    if not re.match(r'^\d{7,20}$', regd_no):
-        return 'Invalid registration number format'
-    return None
-
-
 # ── Send Reset Email ─────────────────────────────────────
 def send_reset_email(email, token):
     reset_url = url_for('auth.reset_password', token=token, _external=True)
@@ -59,6 +53,36 @@ If you didn't request this, ignore this email.
         logger.warning(f"Mail send failed for {email}: {e}")
 
 
+# ── Send Verification Email ──────────────────────────────
+def send_verify_email(email, token):
+    verify_url = url_for('auth.verify_email', token=token, _external=True)
+
+    try:
+        msg = Message(
+            subject='Verify your email — SR & BGNR College Tracker',
+            sender=current_app.config['MAIL_USERNAME'],
+            recipients=[email]
+        )
+        msg.body = f"""Hi,
+
+Welcome to SR & BGNR College Tracker!
+
+Click the link below to verify your email address (valid for 24 hours):
+
+{verify_url}
+
+If you didn't create an account, ignore this email.
+
+— SR & BGNR College Tracker"""
+
+        with current_app.app_context():
+            mail.send(msg)
+        return True
+    except Exception as e:
+        logger.warning(f"Verify email send failed for {email}: {e}")
+        return False
+
+
 # ── Signup ───────────────────────────────────────────────
 @auth_bp.route('/signup', methods=['GET', 'POST'])
 def signup():
@@ -69,9 +93,7 @@ def signup():
         name = request.form.get('name', '').strip()[:100]
         email_raw = request.form.get('email', '').strip().lower()
         password = request.form.get('password', '')
-        regd_no = request.form.get('regd_no', '').strip()
 
-        # validate email
         try:
             valid = validate_email(email_raw)
             email = valid.email
@@ -79,45 +101,97 @@ def signup():
             flash('Invalid email address!', 'error')
             return redirect(url_for('auth.signup'))
 
-        # validate password
         pw_err = _validate_password(password)
         if pw_err:
             flash(pw_err, 'error')
-            return redirect(url_for('auth.signup'))
-
-        # validate regd_no
-        rn_err = _validate_regd_no(regd_no)
-        if rn_err:
-            flash(rn_err, 'error')
             return redirect(url_for('auth.signup'))
 
         if not name:
             flash('Name is required!', 'error')
             return redirect(url_for('auth.signup'))
 
-        # check existing email
         if User.query.filter_by(email=email).first():
             flash('Email already registered!', 'error')
             return redirect(url_for('auth.signup'))
 
-        # create account
         hashed_pw = bcrypt.generate_password_hash(password).decode('utf-8')
         user = User(
             name=name,
             email=email,
             password=hashed_pw,
-            regd_no=regd_no,
             plan='free',
             password_changed_at=datetime.utcnow()
         )
         db.session.add(user)
         db.session.commit()
 
-        login_user(user)
-        flash('Account created! Please subscribe to start searching.', 'success')
-        return redirect(url_for('subscribe'))
+        # send verification email
+        from extensions import serializer
+        token = serializer.dumps(email, salt='email-verify')
+        sent = send_verify_email(email, token)
+
+        flash('Account created! Check your email to verify your account.', 'success')
+        return render_template('verify_email.html', email=email, sent=sent)
 
     return render_template('signup.html')
+
+
+# ── Verify Email ─────────────────────────────────────────
+@auth_bp.route('/verify-email/<token>')
+def verify_email(token):
+    from extensions import serializer
+    try:
+        email = serializer.loads(token, salt='email-verify', max_age=86400)
+    except Exception:
+        flash('Verification link is invalid or expired!', 'error')
+        return redirect(url_for('auth.login'))
+
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        flash('User not found!', 'error')
+        return redirect(url_for('auth.signup'))
+
+    if user.email_verified:
+        flash('Email already verified! Please login.', 'info')
+    else:
+        user.email_verified = True
+        db.session.commit()
+        flash('Email verified successfully! You can now login.', 'success')
+
+    return redirect(url_for('auth.login'))
+
+
+# ── Resend Verification ──────────────────────────────────
+@auth_bp.route('/resend-verification', methods=['POST'])
+def resend_verification():
+    from extensions import serializer
+    email = request.form.get('email', '').strip().lower()
+
+    try:
+        valid = validate_email(email)
+        email = valid.email
+    except EmailNotValidError:
+        flash('Invalid email address!', 'error')
+        return redirect(url_for('auth.signup'))
+
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        flash('If that email exists, a verification link has been sent!', 'info')
+        return redirect(url_for('auth.login'))
+
+    if user.email_verified:
+        flash('Email already verified! Please login.', 'info')
+        return redirect(url_for('auth.login'))
+
+    token = serializer.dumps(email, salt='email-verify')
+    sent = send_verify_email(email, token)
+
+    if sent:
+        flash('Verification email resent! Check your inbox.', 'success')
+    else:
+        flash('Failed to send email. Try again later.', 'error')
+
+    return render_template('verify_email.html', email=email, sent=sent)
 
 
 # ── Login ────────────────────────────────────────────────
@@ -136,6 +210,10 @@ def login():
             if user.is_admin:
                 flash('Please use the Admin login page!', 'error')
                 return redirect(url_for('auth.login'))
+
+            if not user.email_verified:
+                flash('Please verify your email before logging in.', 'error')
+                return render_template('login.html', needs_verify=True, email=email)
 
             login_user(user)
             return redirect(url_for('index'))
@@ -161,7 +239,6 @@ def forgot_password():
 
         email = request.form.get('email', '').strip().lower()
 
-        # try to validate email format
         try:
             valid = validate_email(email)
             email = valid.email
@@ -201,7 +278,6 @@ def reset_password(token):
         flash('Reset link is invalid or expired!', 'error')
         return redirect(url_for('auth.forgot_password'))
 
-    # if password was changed after token was issued, invalidate
     if changed_at_str and user.password_changed_at:
         if str(user.password_changed_at) != changed_at_str:
             flash('Reset link is invalid or expired!', 'error')

@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
 from flask_login import login_user, logout_user, login_required, current_user
-from models import db, User, Payment, Subscription
+from models import db, User, Payment, Subscription, SearchHistory
 from extensions import bcrypt, mail
 from flask_mail import Message
 from datetime import datetime, timedelta
@@ -191,4 +191,43 @@ def cancel_subscription(user_id):
         'error'
     )
 
+    return redirect(url_for('admin.admin_panel'))
+
+
+@admin_bp.route('/admin/reset-limits/<int:user_id>')
+@login_required
+def reset_user_limits(user_id):
+    if not current_user.is_admin:
+        return redirect(url_for('index'))
+
+    today = datetime.now().date()
+    SearchHistory.query.filter(
+        SearchHistory.user_id == user_id,
+        db.func.date(SearchHistory.searched_at) == today
+    ).delete()
+    db.session.commit()
+
+    user = User.query.get(user_id)
+    flash(f"Today's search limit reset for {user.name}!", 'success')
+    return redirect(url_for('admin.admin_panel'))
+
+
+@admin_bp.route('/admin/delete-user/<int:user_id>')
+@login_required
+def delete_user(user_id):
+    if not current_user.is_admin:
+        return redirect(url_for('index'))
+
+    user = User.query.get_or_404(user_id)
+    if user.is_admin:
+        flash('Cannot delete admin users!', 'error')
+        return redirect(url_for('admin.admin_panel'))
+
+    Subscription.query.filter_by(user_id=user_id).delete()
+    Payment.query.filter_by(user_id=user_id).delete()
+    SearchHistory.query.filter_by(user_id=user_id).delete()
+    db.session.delete(user)
+    db.session.commit()
+
+    flash(f'User {user.name} deleted!', 'success')
     return redirect(url_for('admin.admin_panel'))

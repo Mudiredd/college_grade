@@ -8,7 +8,7 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: 'Segoe UI', sans-serif;
-      background: #0f0f1a;
+      background: #0d0709;
       color: #fff;
       min-height: 100vh;
       display: flex;
@@ -16,7 +16,7 @@
       justify-content: center;
     }
     .card {
-      background: #1a1a2e;
+      background: #1c0f13;
       border: 1px solid #ffffff11;
       border-radius: 20px;
       padding: 40px 36px;
@@ -25,7 +25,7 @@
       margin: 20px;
     }
     .logo { text-align: center; margin-bottom: 28px; }
-    .logo h1 { font-size: 1.6rem; color: #00d4ff; margin-bottom: 6px; }
+    .logo h1 { font-size: 1.6rem; color: #d4405e; margin-bottom: 6px; }
     .logo p  { color: #aaa; font-size: 0.88rem; }
     .flash-msg {
       padding: 10px 14px;
@@ -40,25 +40,33 @@
     label { display: block; font-size: 0.82rem; color: #aaa; margin-bottom: 6px; }
     input[type="text"],
     input[type="email"],
-    input[type="password"] {
+    input[type="password"],
+    input[type="text"] {
       width: 100%;
       padding: 13px 16px;
       border-radius: 12px;
       border: 2px solid #ffffff11;
-      background: #0f0f1a;
+      background: #0d0709;
       color: #fff;
       font-size: 0.95rem;
       outline: none;
       transition: border 0.3s;
     }
-    input:focus { border-color: #00d4ff; }
+    input:focus { border-color: #d4405e; }
+    .pw-wrap { position: relative; }
+    .pw-toggle {
+      position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; color: #666; cursor: pointer;
+      font-size: 1.1rem; padding: 4px; line-height: 1;
+    }
+    .pw-toggle:hover { color: #aaa; }
     .hint { font-size: 0.78rem; color: #aaa; margin-top: 5px; }
     .btn-primary {
       width: 100%;
       padding: 14px;
       border-radius: 12px;
       border: none;
-      background: linear-gradient(135deg, #00d4ff, #0077ff);
+      background: linear-gradient(135deg, #d4405e, #96263e);
       color: #fff;
       font-size: 1rem;
       font-weight: bold;
@@ -68,7 +76,7 @@
     }
     .btn-primary:hover { opacity: 0.85; }
     .links { text-align: center; margin-top: 20px; font-size: 0.85rem; color: #aaa; }
-    .links a { color: #00d4ff; text-decoration: none; }
+    .links a { color: #d4405e; text-decoration: none; }
     .links a:hover { text-decoration: underline; }
     .divider { border: none; border-top: 1px solid #ffffff11; margin: 24px 0; }
   </style>
@@ -96,13 +104,11 @@
       <input type="email" name="email" placeholder="you@email.com" required />
     </div>
     <div class="form-group">
-      <label>Registration Number</label>
-      <input type="text" name="regd_no" placeholder="e.g. 15B91A0101" required />
-      <div class="hint">Your college registration number</div>
-    </div>
-    <div class="form-group">
       <label>Password</label>
-      <input type="password" name="password" placeholder="Min. 6 characters" required minlength="6" />
+      <div class="pw-wrap">
+        <input type="password" name="password" id="signupPw" placeholder="Min. 6 characters" required minlength="6" />
+        <button type="button" class="pw-toggle" onclick="togglePW('signupPw',this)">👁</button>
+      </div>
     </div>
     <button type="submit" class="btn-primary">Create Account</button>
   </form>
@@ -111,6 +117,13 @@
   <div class="links">
     Already have an account? <a href="{{ url_for('auth.login') }}">Sign In</a>
   </div>
-</div>
+  </div>
+<script>
+function togglePW(id, btn) {
+  const inp = document.getElementById(id);
+  if (inp.type === 'password') { inp.type = 'text'; btn.textContent = '🙈'; }
+  else { inp.type = 'password'; btn.textContent = '👁'; }
+}
+</script>
 </body>
 </html>

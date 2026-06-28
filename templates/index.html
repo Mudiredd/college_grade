@@ -26,7 +26,7 @@
 
     body{
       font-family:'Inter','Segoe UI',sans-serif;
-      background:#0b0b16;
+      background:#0d0709;
       color:#fff;
       min-height:100vh;
     }
@@ -64,7 +64,7 @@
       width:32px;
       height:32px;
       border-radius:8px;
-      background:linear-gradient(135deg,#00d4ff,#0077ff);
+      background:linear-gradient(135deg,#d4405e,#96263e);
       display:flex;
       align-items:center;
       justify-content:center;
@@ -79,7 +79,7 @@
       letter-spacing:-.01em;
     }
     .topbar-title span{
-      color:#00d4ff;
+      color:#d4405e;
     }
 
     .topbar-nav{
@@ -90,7 +90,7 @@
     }
     .topbar-nav a,
     .topbar-nav span{
-      color:#999;
+      color:#b09090;
       font-size:.82rem;
       padding:6px 12px;
       border-radius:8px;
@@ -113,7 +113,7 @@
       width:30px;
       height:30px;
       border-radius:50%;
-      background:linear-gradient(135deg,#00d4ff,#0077ff);
+      background:linear-gradient(135deg,#d4405e,#96263e);
       display:flex;
       align-items:center;
       justify-content:center;
@@ -147,7 +147,7 @@
     .hero{
       padding:50px 20px 36px;
       text-align:center;
-      background:linear-gradient(160deg,#13132a,#0b0b16 60%,#0f0f1a);
+      background:linear-gradient(160deg,#180a10,#0d0709 60%,#0d0709);
       position:relative;
       overflow:hidden;
     }
@@ -158,7 +158,7 @@
       left:-50%;
       width:200%;
       height:200%;
-      background:radial-gradient(circle at 30% 40%,rgba(0,212,255,.04) 0%,transparent 60%);
+      background:radial-gradient(circle at 30% 40%,rgba(212,64,94,.04) 0%,transparent 60%);
       animation:heroGlow 8s ease-in-out infinite alternate;
     }
     @keyframes heroGlow{
@@ -179,14 +179,14 @@
       margin-bottom:6px;
     }
     .hero h1 span{
-      background:linear-gradient(135deg,#00d4ff,#0077ff);
+      background:linear-gradient(135deg,#d4405e,#96263e);
       -webkit-background-clip:text;
       -webkit-text-fill-color:transparent;
       background-clip:text;
     }
 
     .hero p{
-      color:#777;
+      color:#906868;
       font-size:.9rem;
       max-width:500px;
       margin:0 auto 24px;
@@ -209,18 +209,18 @@
       background:rgba(26,26,46,.7);
       backdrop-filter:blur(6px);
       color:#fff;
-      border:1.5px solid rgba(0,212,255,.2);
+      border:1.5px solid rgba(212,64,94,.2);
       font-size:.95rem;
       font-family:inherit;
       transition:border-color .3s,box-shadow .3s;
     }
     .search-row input:focus{
       outline:none;
-      border-color:#00d4ff;
-      box-shadow:0 0 0 3px rgba(0,212,255,.15);
+      border-color:#d4405e;
+      box-shadow:0 0 0 3px rgba(212,64,94,.15);
     }
     .search-row input::placeholder{
-      color:#555;
+      color:#6a4848;
     }
 
     .btn{
@@ -246,11 +246,11 @@
     }
 
     .btn-primary{
-      background:linear-gradient(135deg,#00d4ff,#0077ff);
-      box-shadow:0 4px 15px rgba(0,119,255,.3);
+      background:linear-gradient(135deg,#d4405e,#96263e);
+      box-shadow:0 4px 15px rgba(150,38,62,.3);
     }
     .btn-primary:hover{
-      box-shadow:0 6px 24px rgba(0,119,255,.45);
+      box-shadow:0 6px 24px rgba(150,38,62,.45);
     }
 
     .btn-danger{
@@ -266,7 +266,7 @@
     .btn-outline{
       background:transparent;
       border:1.5px solid rgba(255,255,255,.1);
-      color:#aaa;
+      color:#c09898;
     }
     .btn-outline:hover{
       border-color:rgba(255,255,255,.25);
@@ -301,51 +301,25 @@
       gap:8px;
     }
     .loading-header .status-text{
-      color:#00d4ff;
+      color:#d4405e;
       font-weight:600;
       font-size:.9rem;
     }
     .loading-header .elapsed{
-      color:#555;
+      color:#6a4848;
       font-size:.8rem;
       font-variant-numeric:tabular-nums;
     }
 
-    .progress-container{
-      width:100%;
-      height:18px;
-      border-radius:14px;
-      overflow:hidden;
-      background:rgba(26,26,46,.6);
-      border:1px solid rgba(255,255,255,.06);
-      margin-bottom:6px;
-      position:relative;
+    .heartbeat-wrap{
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      margin:8px 0 12px;
     }
-    .progress-container::after{
-      content:"";
-      position:absolute;
-      inset:0;
-      border-radius:14px;
-      box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
-      pointer-events:none;
-    }
-
-    .progress-bar{
-      width:0%;
-      height:100%;
-      background:linear-gradient(90deg,#00d4ff,#0077ff);
-      transition:width 3s linear;
-      position:relative;
-    }
-    .progress-bar::after{
-      content:"";
-      position:absolute;
-      right:0;
-      top:0;
-      width:20px;
-      height:100%;
-      background:linear-gradient(90deg,transparent,rgba(255,255,255,.3));
-      border-radius:0 14px 14px 0;
+    .heartbeat-wrap lottie-player{
+      width:200px !important;
+      height:100px !important;
     }
 
     .timeline{
@@ -364,16 +338,16 @@
       height:8px;
       min-width:8px;
       border-radius:50%;
-      background:#00d4ff;
+      background:#d4405e;
       margin-top:6px;
-      box-shadow:0 0 6px rgba(0,212,255,.4);
+      box-shadow:0 0 6px rgba(212,64,94,.4);
     }
     .tl-item .tl-dot.dim{
       background:rgba(255,255,255,.15);
       box-shadow:none;
     }
     .tl-item .tl-text{
-      color:#aaa;
+      color:#c09898;
       font-size:.85rem;
       line-height:1.4;
     }
@@ -425,10 +399,10 @@
       margin-bottom:4px;
     }
     .report-header h1 span{
-      color:#00d4ff;
+      color:#d4405e;
     }
     .report-header .report-meta{
-      color:#666;
+      color:#7a5858;
       font-size:.82rem;
     }
 
@@ -460,7 +434,7 @@
       display:block;
     }
     .summary-card h3{
-      color:#888;
+      color:#a07878;
       font-size:.75rem;
       font-weight:600;
       text-transform:uppercase;
@@ -474,7 +448,7 @@
     }
     .summary-card .sc-value.green{color:#00e676;}
     .summary-card .sc-value.red{color:#ff5252;}
-    .summary-card .sc-value.blue{color:#00d4ff;}
+    .summary-card .sc-value.blue{color:#d4405e;}
 
     .semester-card{
       background:rgba(26,26,46,.7);
@@ -514,11 +488,11 @@
       font-size:1rem;
     }
     .sem-header-left .sem-meta{
-      color:#666;
+      color:#7a5858;
       font-size:.82rem;
     }
     .sem-header-left .sem-meta span{
-      color:#888;
+      color:#a07878;
     }
 
     .arrear-badge{
@@ -554,7 +528,7 @@
       font-size:.78rem;
       text-transform:uppercase;
       letter-spacing:.04em;
-      color:#666;
+      color:#7a5858;
       border-bottom:1px solid rgba(255,255,255,.06);
     }
     .subjects-table td{
@@ -653,7 +627,7 @@
       font-size:.82rem;
     }
     .supply-table th{
-      color:#666;
+      color:#7a5858;
       padding:6px 10px;
       text-align:left;
       font-weight:600;
@@ -683,7 +657,7 @@
       margin-bottom:16px;
     }
     .downloads-title span{
-      color:#00d4ff;
+      color:#d4405e;
     }
 
     .downloads-grid{
@@ -713,7 +687,7 @@
       width:36px;
       height:36px;
       border-radius:8px;
-      background:linear-gradient(135deg,#00d4ff22,#0077ff22);
+      background:linear-gradient(135deg,#d4405e22,#96263e22);
       display:flex;
       align-items:center;
       justify-content:center;
@@ -732,14 +706,14 @@
       text-overflow:ellipsis;
     }
     .download-card-left .dl-info p{
-      color:#666;
+      color:#7a5858;
       font-size:.75rem;
     }
 
     .download-card .dl-delete{
       background:none;
       border:none;
-      color:#555;
+      color:#6a4848;
       cursor:pointer;
       font-size:1.1rem;
       padding:4px;
@@ -763,13 +737,13 @@
     }
     .scanning-bar .sb-header{
       font-size:.85rem;
-      color:#00d4ff;
+      color:#d4405e;
       font-weight:600;
       margin-bottom:2px;
     }
     .scanning-bar .sb-sub{
       font-size:.78rem;
-      color:#777;
+      color:#906868;
     }
     .sb-panda-track{
       position:relative;
@@ -799,7 +773,7 @@
     .sb-fill{
       height:100%;
       border-radius:4px;
-      background:linear-gradient(90deg,#00d4ff,#0077ff);
+      background:linear-gradient(90deg,#d4405e,#96263e);
       transition:width 3s linear;
     }
 
@@ -865,6 +839,58 @@
       0%{transform:translate(0,0);}
       100%{transform:translate(-5%,5%);}
     }
+
+    /* =========================
+       ERROR OVERLAY
+    ========================== */
+    .error-overlay{
+      position:fixed;
+      inset:0;
+      z-index:999;
+      background:rgba(11,11,22,.92);
+      backdrop-filter:blur(10px);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      padding:24px;
+      animation:fadeIn .3s ease;
+    }
+    .error-overlay.active{
+      display:flex;
+    }
+    .error-overlay-inner{
+      text-align:center;
+      max-width:380px;
+    }
+    .error-overlay-inner lottie-player{
+      width:180px !important;
+      height:180px !important;
+      margin:0 auto 16px;
+    }
+    .error-overlay-inner .eo-title{
+      font-size:1.2rem;
+      font-weight:700;
+      margin-bottom:8px;
+    }
+    .error-overlay-inner .eo-msg{
+      color:#b09090;
+      font-size:.85rem;
+      margin-bottom:20px;
+      line-height:1.6;
+    }
+    .btn-retry{
+      padding:12px 32px;
+      border-radius:10px;
+      border:none;
+      background:linear-gradient(135deg,#d4405e,#96263e);
+      color:#fff;
+      font-size:.9rem;
+      font-weight:700;
+      font-family:inherit;
+      cursor:pointer;
+      transition:opacity .3s;
+    }
+    .btn-retry:hover{opacity:.85;}
 
     /* =========================
        MOBILE — first-class responsive
@@ -1057,21 +1083,14 @@
     <span class="elapsed" id="elapsed"></span>
   </div>
 
-  <div class="panda-track">
-    <div class="panda-walker" id="pandaLoading">
-      <lottie-player
-        src="{{ url_for('static', filename='animations/Panda traveling.json') }}"
-        background="transparent"
-        speed="1.2"
-        loop
-        autoplay
-        style="width:56px;height:56px;transform:scaleX(-1)"
-      ></lottie-player>
-    </div>
-  </div>
-
-  <div class="progress-container">
-    <div class="progress-bar" id="progressBar"></div>
+  <div class="heartbeat-wrap">
+    <lottie-player
+      src="{{ url_for('static', filename='animations/heartbeat.json') }}"
+      background="transparent"
+      speed="1"
+      loop
+      autoplay
+    ></lottie-player>
   </div>
 
   <div class="timeline" id="stepsContainer"></div>
@@ -1084,6 +1103,22 @@
   class="error-msg"
   id="errorMsg"
 ></div>
+
+<!-- ERROR OVERLAY -->
+<div class="error-overlay" id="errorOverlay">
+  <div class="error-overlay-inner">
+    <lottie-player
+      src="{{ url_for('static', filename='animations/we-are-sorry.json') }}"
+      background="transparent"
+      speed="1"
+      loop
+      autoplay
+    ></lottie-player>
+    <div class="eo-title" id="eoTitle">Something went wrong</div>
+    <div class="eo-msg" id="eoMsg"></div>
+    <button class="btn-retry" onclick="closeErrorOverlay()">Try Again</button>
+  </div>
+</div>
 
 <!-- DASHBOARD -->
 
@@ -1137,6 +1172,8 @@ let startTime = null;
 let elapsedInterval = null;
 let pollInterval = null;
 let isFree = {{ 'true' if plan == 'free' else 'false' }};
+let renderedSemesters = new Set();
+let lastMessage = '';
 
 /* =========================
    FETCH RESULTS (POLLING)
@@ -1153,6 +1190,8 @@ async function fetchResults(){
 
   latestRegdNo = regdNo;
 
+  sessionStorage.removeItem("lastRegdNo");
+  sessionStorage.removeItem("lastData");
   resetUI();
 
   startTime = Date.now();
@@ -1182,8 +1221,7 @@ async function fetchResults(){
 
     if(!res.ok){
       const err = await res.json();
-      showError(err.error || "Search failed");
-      resetButtons();
+      showError(err.error || "Search failed", true);
       return;
     }
 
@@ -1193,8 +1231,7 @@ async function fetchResults(){
     startPolling();
 
   }catch(err){
-    showError("Something went wrong");
-    resetButtons();
+    showError("Something went wrong. Please try again.", true);
   }
 }
 
@@ -1216,8 +1253,7 @@ function startPolling(){
 
       if(!res.ok){
         clearInterval(pollInterval);
-        showError("Task not found");
-        resetButtons();
+        showError(`Server error (${res.status} — ${res.statusText})`, true);
         return;
       }
 
@@ -1235,17 +1271,15 @@ function startPolling(){
 
         if(state.progress !== undefined){
           const pct = state.progress;
-          document.getElementById("progressBar").style.width = pct + "%";
-
-          const pandaLoading = document.getElementById("pandaLoading");
-          if(pandaLoading) pandaLoading.style.left = pct + "%";
-
           const pandaScanning = document.getElementById("pandaScanning");
           if(pandaScanning) pandaScanning.style.left = pct + "%";
+          const fill = document.querySelector(".sb-fill");
+          if(fill) fill.style.width = pct + "%";
         }
 
-        if(state.semester){
+        if(state.semester && !renderedSemesters.has(state.semester.semester)){
           const sem = state.semester;
+          renderedSemesters.add(sem.semester);
           allData[String(sem.semester)] = sem.data;
           removeSkeletons();
           renderDashboard(allData);
@@ -1258,13 +1292,19 @@ function startPolling(){
           updateScanningBar("", 0, scanningTarget);
         }
 
-        addStep(state.message);
+        if(state.message && state.message !== lastMessage){
+          lastMessage = state.message;
+          addStep(state.message);
+        }
 
       } else if(state.status === "done"){
 
         latestData = state.data;
         allData = state.data;
         removeScanningBar();
+
+        sessionStorage.setItem("lastRegdNo", latestRegdNo);
+        sessionStorage.setItem("lastData", JSON.stringify(state.data));
 
         document.getElementById("loading").style.display = "none";
         if(elapsedInterval){ clearInterval(elapsedInterval); elapsedInterval = null; }
@@ -1284,8 +1324,7 @@ function startPolling(){
       } else if(state.status === "error"){
 
         if(elapsedInterval){ clearInterval(elapsedInterval); elapsedInterval = null; }
-        showError(state.error || "An error occurred");
-        resetButtons();
+        showError(state.error || "An error occurred during the search.", true);
         clearInterval(pollInterval);
         pollInterval = null;
 
@@ -1501,12 +1540,22 @@ function addStep(text){
   container.prepend(div);
 }
 
-function showError(msg){
+function showError(msg, serious){
   document.getElementById("loading").style.display = "none";
   if(elapsedInterval){ clearInterval(elapsedInterval); elapsedInterval = null; }
+  if(serious){
+    document.getElementById("eoMsg").textContent = msg;
+    document.getElementById("errorOverlay").classList.add("active");
+    return;
+  }
   const err = document.getElementById("errorMsg");
   err.textContent = msg;
   err.style.display = "block";
+}
+
+function closeErrorOverlay(){
+  document.getElementById("errorOverlay").classList.remove("active");
+  resetButtons();
 }
 
 function resetButtons(){
@@ -1518,6 +1567,8 @@ function resetUI(){
   currentTaskId = null;
   allData = {};
   scanningTarget = 2;
+  renderedSemesters = new Set();
+  lastMessage = '';
   if(pollInterval){ clearInterval(pollInterval); pollInterval = null; }
   if(elapsedInterval){ clearInterval(elapsedInterval); elapsedInterval = null; }
   const el = document.getElementById("elapsed");
@@ -1528,7 +1579,6 @@ function resetUI(){
   document.getElementById("stepsContainer").innerHTML = "";
   const st = document.getElementById("stepText");
   if(st) st.textContent = "Starting...";
-  document.getElementById("progressBar").style.width = "0%";
   document.getElementById("downloadBtn").style.display = "none";
   removeScanningBar();
 }
@@ -1612,6 +1662,23 @@ function removeScanningBar(){
     setTimeout(()=>bar.remove(), 500);
   }
 }
+
+/* =========================
+   RESTORE LAST SEARCH
+========================= */
+
+(function(){
+  const savedRegdNo = sessionStorage.getItem("lastRegdNo");
+  const savedData = sessionStorage.getItem("lastData");
+  if(savedRegdNo && savedData){
+    latestRegdNo = savedRegdNo;
+    allData = JSON.parse(savedData);
+    latestData = allData;
+    renderDashboard(allData);
+    document.getElementById("dashboard").style.display = "block";
+    document.getElementById("downloadBtn").style.display = isFree ? "none" : "inline-flex";
+  }
+})();
 
 /* =========================
    INITIAL LOAD

@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
   <title>Subscribe — SR & BGNR College Tracker</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family:'Inter','Segoe UI',sans-serif; background:#0b0b16; color:#fff; min-height:100vh; }
+    body { font-family:'Inter','Segoe UI',sans-serif; background:#0d0709; color:#fff; min-height:100vh; }
 
     .topbar {
       position:sticky; top:0; z-index:100;
@@ -15,20 +15,20 @@
       padding:12px 24px; display:flex; justify-content:space-between; align-items:center;
       border-bottom:1px solid rgba(255,255,255,.06);
     }
-    .topbar-title { color:#00d4ff; font-weight:700; font-size:.95rem; }
-    .topbar a { color:#999; font-size:.82rem; text-decoration:none; padding:6px 12px; border-radius:8px; transition:all .2s; }
+    .topbar-title { color:#d4405e; font-weight:700; font-size:.95rem; }
+    .topbar a { color:#b09090; font-size:.82rem; text-decoration:none; padding:6px 12px; border-radius:8px; transition:all .2s; }
     .topbar a:hover { color:#fff; background:rgba(255,255,255,.06); }
 
-    .container { max-width:1100px; margin:0 auto; padding:40px 20px; }
+    .container { max-width:1100px; margin:0 auto; padding:40px 20px 100px; }
 
-    h2 { font-size:1.7rem; font-weight:800; text-align:center; letter-spacing:-.02em; margin-bottom:6px; }
-    h2 span { background:linear-gradient(135deg,#00d4ff,#0077ff); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
-    .subtitle { color:#777; text-align:center; font-size:.9rem; margin-bottom:8px; }
+    h2 { font-size:1.7rem; font-weight:800; text-align:center; letter-spacing:-.02em; margin-bottom:4px; }
+    h2 span { background:linear-gradient(135deg,#d4405e,#96263e); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+    .subtitle { color:#906868; text-align:center; font-size:.9rem; margin-bottom:30px; }
 
     .flash-msg { padding:10px 14px; border-radius:10px; font-size:.85rem; margin-bottom:20px; text-align:center; }
     .flash-success { background:rgba(0,230,118,.12); color:#00e676; border:1px solid rgba(0,230,118,.25); }
     .flash-error   { background:rgba(255,82,82,.12); color:#ff5252; border:1px solid rgba(255,82,82,.25); }
-    .flash-info    { background:rgba(0,212,255,.12); color:#00d4ff; border:1px solid rgba(0,212,255,.25); }
+    .flash-info    { background:rgba(212,64,94,.12); color:#d4405e; border:1px solid rgba(212,64,94,.25); }
 
     .active-sub {
       background:rgba(0,230,118,.06); border:1px solid rgba(0,230,118,.25);
@@ -37,33 +37,66 @@
     }
     .active-sub-icon { font-size:1.5rem; }
     .active-sub-text h3 { color:#00e676; font-size:.95rem; font-weight:600; margin-bottom:2px; }
-    .active-sub-text p  { color:#999; font-size:.82rem; }
+    .active-sub-text p  { color:#b09090; font-size:.82rem; }
 
-    /* --- Free Trial Banner --- */
+    /* ── Step Progress ── */
+    .step-progress {
+      display:flex; justify-content:center; align-items:center; gap:8px;
+      margin-bottom:36px;
+    }
+    .step-dot {
+      display:flex; align-items:center; gap:6px;
+      color:#6a4848; font-size:.78rem; font-weight:600; text-transform:uppercase;
+      letter-spacing:.04em; transition:color .4s;
+    }
+    .step-dot.active { color:#d4405e; }
+    .step-dot.done { color:#00e676; }
+    .step-circle {
+      width:28px; height:28px; border-radius:50%;
+      display:flex; align-items:center; justify-content:center;
+      font-size:.75rem; font-weight:700;
+      background:rgba(255,255,255,.06); color:#6a4848;
+      transition:all .4s; flex-shrink:0;
+    }
+    .step-dot.active .step-circle { background:#d4405e; color:#000; box-shadow:0 0 16px rgba(212,64,94,.3); }
+    .step-dot.done .step-circle { background:#00e676; color:#000; }
+    .step-line {
+      width:40px; height:2px; border-radius:2px;
+      background:rgba(255,255,255,.08); transition:background .4s;
+    }
+    .step-line.done { background:#00e676; }
+
+    /* ── Steps Container ── */
+    .step-panel { display:none; animation: fadeUp .4s ease both; }
+    .step-panel.active { display:block; }
+    @keyframes fadeUp {
+      from { opacity:0; transform:translateY(18px) scale(.97); }
+      to   { opacity:1; transform:translateY(0) scale(1); }
+    }
+
+    /* ── Free Trial Banner ── */
     .free-trial {
-      background:rgba(0,212,255,.06); border:1px solid rgba(0,212,255,.2);
+      background:rgba(212,64,94,.06); border:1px solid rgba(212,64,94,.2);
       backdrop-filter:blur(10px); border-radius:16px; padding:24px 28px;
       margin-bottom:36px; display:flex; align-items:center; gap:18px; flex-wrap:wrap;
     }
     .free-trial-icon { font-size:2rem; }
     .free-trial-content { flex:1; min-width:200px; }
-    .free-trial-content h3 { color:#00d4ff; font-size:1.05rem; font-weight:700; margin-bottom:4px; }
-    .free-trial-content p { color:#888; font-size:.85rem; line-height:1.5; }
-    .free-trial-content .ft-features { display:flex; flex-wrap:wrap; gap:12px; margin-top:10px; }
-    .free-trial-content .ft-features span { background:rgba(0,212,255,.08); color:#00d4ff; padding:3px 10px; border-radius:6px; font-size:.75rem; font-weight:600; }
+    .free-trial-content h3 { color:#d4405e; font-size:1.05rem; font-weight:700; margin-bottom:4px; }
+    .free-trial-content p { color:#a07878; font-size:.85rem; line-height:1.5; }
+    .free-trial-content .ft-features { display:flex; flex-wrap:wrap; gap:10px; margin-top:10px; }
+    .free-trial-content .ft-features span { background:rgba(212,64,94,.08); color:#d4405e; padding:3px 10px; border-radius:6px; font-size:.75rem; font-weight:600; }
 
-    /* --- Plans Grid --- */
-    .plans { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:36px; }
-
+    /* ── Plans Grid ── */
+    .plans { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:28px; }
     .plan-card {
       background:rgba(26,26,46,.7); backdrop-filter:blur(10px);
       border:1.5px solid rgba(255,255,255,.06); border-radius:16px;
       padding:28px 22px; cursor:pointer; transition:all .3s; position:relative;
       display:flex; flex-direction:column;
     }
-    .plan-card:hover  { border-color:rgba(0,212,255,.3); transform:translateY(-3px); box-shadow:0 8px 30px rgba(0,119,255,.08); }
-    .plan-card.selected { border-color:#00d4ff; background:rgba(0,212,255,.06); box-shadow:0 0 25px rgba(0,119,255,.12); }
-
+    .plan-card:hover  { border-color:rgba(212,64,94,.3); transform:translateY(-3px); box-shadow:0 8px 30px rgba(150,38,62,.08); }
+    .plan-card.selected { border-color:#d4405e; background:rgba(212,64,94,.06); box-shadow:0 0 25px rgba(150,38,62,.12); }
     .plan-badge {
       position:absolute; top:-10px; left:50%; transform:translateX(-50%);
       background:linear-gradient(135deg,#ffd740,#ff9800);
@@ -71,33 +104,45 @@
       text-transform:uppercase; letter-spacing:.03em;
     }
     .plan-name  { font-size:1.05rem; font-weight:700; margin-bottom:4px; }
-    .plan-price { font-size:2rem; font-weight:800; color:#00d4ff; margin-bottom:2px; letter-spacing:-.02em; }
-    .plan-price span { font-size:.85rem; color:#888; font-weight:500; }
-    .plan-desc  { color:#888; font-size:.82rem; margin-top:14px; line-height:1.7; flex:1; }
+    .plan-price { font-size:2rem; font-weight:800; color:#d4405e; margin-bottom:2px; letter-spacing:-.02em; }
+    .plan-price span { font-size:.85rem; color:#a07878; font-weight:500; }
+    .plan-desc  { color:#a07878; font-size:.82rem; margin-top:14px; line-height:1.7; flex:1; }
     .plan-desc .check { color:#00e676; }
-    .plan-desc .cross { color:#555; }
-
+    .plan-desc .cross { color:#6a4848; }
     .plan-cta {
       margin-top:18px; padding:12px; border-radius:10px; border:none;
-      background:rgba(255,255,255,.04); color:#aaa; font-size:.85rem; font-weight:600;
+      background:rgba(255,255,255,.04); color:#c09898; font-size:.85rem; font-weight:600;
       font-family:inherit; cursor:pointer; transition:all .2s; text-align:center;
     }
-    .plan-card.selected .plan-cta { background:linear-gradient(135deg,#00d4ff,#0077ff); color:#fff; }
+    .plan-card.selected .plan-cta { background:linear-gradient(135deg,#d4405e,#96263e); color:#fff; }
     .plan-cta:hover { opacity:.85; }
 
-    /* --- UPI Section --- */
-    .upi-section {
+    /* ── UPI Pay Section ── */
+    .pay-section {
       background:rgba(26,26,46,.7); backdrop-filter:blur(10px);
       border:1px solid rgba(255,255,255,.06); border-radius:16px;
-      padding:28px 24px; margin-bottom:28px;
+      padding:28px 24px; margin-bottom:28px; text-align:center;
     }
-    .upi-section h3 { color:#ffd740; font-size:1rem; font-weight:700; margin-bottom:16px; }
+    .pay-section h3 { color:#ffd740; font-size:1rem; font-weight:700; margin-bottom:6px; }
+    .pay-amount-display { font-size:2.4rem; font-weight:900; color:#fff; margin:16px 0 20px; letter-spacing:-.02em; }
+    .pay-amount-display span { color:#d4405e; }
+
+    .upi-deep-wrap { display:flex; flex-direction:column; gap:12px; margin-bottom:20px; }
+    .upi-deep-btn {
+      display:flex; align-items:center; justify-content:center; gap:10px;
+      padding:14px 20px; border-radius:12px; border:1.5px solid rgba(255,255,255,.08);
+      background:rgba(255,255,255,.04); color:#fff;
+      font-size:.9rem; font-weight:600; font-family:inherit;
+      cursor:pointer; transition:all .2s; text-decoration:none;
+    }
+    .upi-deep-btn:hover { background:rgba(255,255,255,.08); border-color:rgba(255,215,64,.3); }
+    .upi-deep-btn .icon { font-size:1.3rem; }
 
     .upi-id-box {
       background:rgba(11,11,22,.7); border:1px solid rgba(255,215,64,.2);
       border-radius:10px; padding:14px 16px; display:flex;
-      justify-content:space-between; align-items:center; margin-bottom:16px;
-      font-family:monospace; font-size:1rem; color:#ffd740;
+      justify-content:space-between; align-items:center; margin-bottom:12px;
+      font-family:monospace; font-size:1rem; color:#ffd740; text-align:left;
     }
     .copy-btn {
       background:rgba(255,215,64,.1); border:1px solid rgba(255,215,64,.25);
@@ -105,54 +150,90 @@
       cursor:pointer; transition:background .2s; font-family:inherit; font-weight:600;
     }
     .copy-btn:hover { background:rgba(255,215,64,.18); }
+    .pay-steps { color:#a07878; font-size:.82rem; line-height:1.9; list-style:none; text-align:left; max-width:340px; margin:0 auto; }
+    .pay-steps li::before { content:"➤ "; color:#d4405e; font-size:.75rem; }
+    .pay-done-btn { margin-top:20px; }
 
-    .upi-steps { color:#aaa; font-size:.83rem; line-height:2; list-style:none; }
-    .upi-steps li::before { content:"→ "; color:#00d4ff; }
+    .btn-primary {
+      width:100%; padding:14px; border-radius:12px; border:none;
+      background:linear-gradient(135deg,#d4405e,#96263e);
+      color:#fff; font-size:1rem; font-weight:700; font-family:inherit;
+      cursor:pointer; transition:opacity .3s;
+    }
+    .btn-primary:hover { opacity:.85; }
+    .btn-primary:disabled { opacity:.4; cursor:default; }
+    .btn-outline {
+      width:100%; padding:13px; border-radius:12px;
+      border:1.5px solid rgba(255,255,255,.08); background:transparent;
+      color:#ccc; font-size:.9rem; font-weight:600; font-family:inherit;
+      cursor:pointer; transition:all .2s;
+    }
+    .btn-outline:hover { background:rgba(255,255,255,.04); border-color:rgba(255,255,255,.15); }
 
-    /* --- UTR Form --- */
-    .utr-form { margin-top:20px; }
-    .utr-form h3 { color:#00d4ff; font-size:1rem; font-weight:700; margin-bottom:16px; }
+    /* ── UTR Form ── */
+    .utr-section {
+      background:rgba(26,26,46,.7); backdrop-filter:blur(10px);
+      border:1px solid rgba(255,255,255,.06); border-radius:16px;
+      padding:28px 24px; margin-bottom:28px;
+    }
+    .utr-section h3 { color:#d4405e; font-size:1rem; font-weight:700; margin-bottom:6px; }
+    .utr-section .note { color:#7a5858; font-size:.8rem; margin-bottom:18px; }
     .form-group { margin-bottom:16px; }
-    label { display:block; font-size:.82rem; color:#888; margin-bottom:6px; font-weight:500; }
-
+    label { display:block; font-size:.82rem; color:#a07878; margin-bottom:6px; font-weight:500; }
     input[type="text"] {
       width:100%; padding:13px 16px; border-radius:12px;
       border:1.5px solid rgba(255,255,255,.06); background:rgba(11,11,22,.7);
       color:#fff; font-size:.95rem; font-family:inherit; outline:none; transition:border-color .3s;
     }
-    input:focus { border-color:#00d4ff; }
+    input:focus { border-color:#d4405e; }
+    .note-bottom { color:#7a5858; font-size:.8rem; text-align:center; margin-top:12px; line-height:1.6; }
+    .back-link { display:inline-block; color:#a07878; font-size:.82rem; text-decoration:none; margin-bottom:20px; transition:color .2s; }
+    .back-link:hover { color:#d4405e; }
 
-    .btn-primary {
-      width:100%; padding:14px; border-radius:12px; border:none;
-      background:linear-gradient(135deg,#00d4ff,#0077ff);
-      color:#fff; font-size:1rem; font-weight:700; font-family:inherit;
-      cursor:pointer; transition:opacity .3s;
+    /* ── Sticky Bottom Bar ── */
+    .sticky-bar {
+      position:fixed; bottom:0; left:0; right:0; z-index:200;
+      background:rgba(26,26,46,.92); backdrop-filter:blur(16px);
+      border-top:1px solid rgba(255,255,255,.06);
+      padding:12px 24px; display:flex; align-items:center;
+      justify-content:space-between; gap:14px;
+      transform:translateY(100%); transition:transform .4s cubic-bezier(.22,1,.36,1);
     }
-    .btn-primary:hover { opacity:.85; }
-    .note { color:#666; font-size:.8rem; text-align:center; margin-top:12px; line-height:1.6; }
+    .sticky-bar.visible { transform:translateY(0); }
+    .sticky-bar .info { display:flex; align-items:center; gap:12px; }
+    .sticky-bar .info .plan { font-weight:700; font-size:.9rem; }
+    .sticky-bar .info .price { color:#d4405e; font-weight:800; font-size:1.1rem; }
+    .sticky-bar .btn-primary { width:auto; padding:10px 28px; border-radius:10px; }
+    .sticky-bar .btn-primary:disabled { opacity:.4; }
 
-    /* --- Responsive --- */
+    /* ── Responsive ── */
     @media(max-width:768px){
       .plans { grid-template-columns:1fr; gap:14px; }
       .plan-card { padding:22px 18px; }
-      .container { padding:24px 14px; }
+      .container { padding:24px 14px 120px; }
       h2 { font-size:1.3rem; }
       .free-trial { padding:18px 20px; flex-direction:column; text-align:center; }
       .free-trial-content .ft-features { justify-content:center; }
-      .upi-section { padding:20px 16px; }
+      .pay-section { padding:20px 16px; }
+      .utr-section { padding:20px 16px; }
+      .step-line { width:24px; }
+      .sticky-bar { padding:10px 16px; }
+      .sticky-bar .info .plan { font-size:.82rem; }
+      .sticky-bar .btn-primary { padding:8px 20px; font-size:.85rem; }
+      .upi-deep-btn { font-size:.82rem; padding:12px 16px; }
     }
-
     @media(max-width:480px){
       .topbar { padding:10px 14px; }
       .plan-price { font-size:1.6rem; }
       .plan-name { font-size:.95rem; }
+      .pay-amount-display { font-size:1.8rem; }
     }
   </style>
 </head>
 <body>
 
 <div class="topbar">
-  <div class="topbar-title">SR & BGNR <span style="color:#00d4ff;">Tracker</span></div>
+  <div class="topbar-title">SR & BGNR <span style="color:#d4405e;">Tracker</span></div>
   <a href="{{ url_for('index') }}">Back</a>
 </div>
 
@@ -182,6 +263,21 @@
     </div>
   {% endif %}
 
+  <!-- STEP PROGRESS -->
+  <div class="step-progress">
+    <div class="step-dot active" id="s1">
+      <span class="step-circle">1</span> Plan
+    </div>
+    <div class="step-line" id="l1"></div>
+    <div class="step-dot" id="s2">
+      <span class="step-circle">2</span> Pay
+    </div>
+    <div class="step-line" id="l2"></div>
+    <div class="step-dot" id="s3">
+      <span class="step-circle">3</span> Submit
+    </div>
+  </div>
+
   <!-- FREE TRIAL -->
   <div class="free-trial">
     <div class="free-trial-icon">🎓</div>
@@ -197,81 +293,115 @@
     </div>
   </div>
 
-  <!-- PLANS -->
-  <div class="plans">
-    <div class="plan-card" id="card-basic" onclick="selectPlan('basic')">
-      <div class="plan-name">📋 Basic</div>
-      <div class="plan-price">₹15 <span>one-time</span></div>
-      <div class="plan-desc">
-        <span class="check">✅</span> 1 search total<br>
-        <span class="check">✅</span> All 8 semesters<br>
-        <span class="check">✅</span> Supply results<br>
-        <span class="check">✅</span> PDF download<br>
-        <span class="cross">—</span> Queue priority: medium
+  <!-- ===== STEP 1: CHOOSE PLAN ===== -->
+  <div class="step-panel active" id="step1">
+    <div class="plans">
+      <div class="plan-card" id="card-basic" onclick="selectPlan('basic')">
+        <div class="plan-name">📋 Basic</div>
+        <div class="plan-price">₹15 <span>one-time</span></div>
+        <div class="plan-desc">
+          <span class="check">✅</span> 1 search total<br>
+          <span class="check">✅</span> All 8 semesters<br>
+          <span class="check">✅</span> Supply results<br>
+          <span class="check">✅</span> PDF download<br>
+          <span class="cross">—</span> Queue priority: medium
+        </div>
+        <button class="plan-cta">Choose Basic</button>
       </div>
-      <button class="plan-cta">Choose Basic</button>
-    </div>
-
-    <div class="plan-card" id="card-monthly" onclick="selectPlan('monthly')">
-      <div class="plan-name">📅 Monthly</div>
-      <div class="plan-price">₹49 <span>/ month</span></div>
-      <div class="plan-desc">
-        <span class="check">✅</span> 4 searches per day<br>
-        <span class="check">✅</span> All 8 semesters<br>
-        <span class="check">✅</span> Supply results<br>
-        <span class="check">✅</span> PDF download<br>
-        <span class="check">✅</span> Higher queue priority
+      <div class="plan-card" id="card-monthly" onclick="selectPlan('monthly')">
+        <div class="plan-name">📅 Monthly</div>
+        <div class="plan-price">₹49 <span>/ month</span></div>
+        <div class="plan-desc">
+          <span class="check">✅</span> 4 searches per day<br>
+          <span class="check">✅</span> All 8 semesters<br>
+          <span class="check">✅</span> Supply results<br>
+          <span class="check">✅</span> PDF download<br>
+          <span class="check">✅</span> Higher queue priority
+        </div>
+        <button class="plan-cta">Choose Monthly</button>
       </div>
-      <button class="plan-cta">Choose Monthly</button>
-    </div>
-
-    <div class="plan-card selected" id="card-yearly" onclick="selectPlan('yearly')">
-      <div class="plan-badge">⭐ Best Value</div>
-      <div class="plan-name">📦 Yearly</div>
-      <div class="plan-price">₹129 <span>/ year</span></div>
-      <div class="plan-desc">
-        <span class="check">✅</span> 8 searches per day<br>
-        <span class="check">✅</span> All 8 semesters<br>
-        <span class="check">✅</span> Supply results<br>
-        <span class="check">✅</span> PDF download<br>
-        <span class="check">✅</span> Highest queue priority
+      <div class="plan-card selected" id="card-yearly" onclick="selectPlan('yearly')">
+        <div class="plan-badge">⭐ Best Value</div>
+        <div class="plan-name">📦 Yearly</div>
+        <div class="plan-price">₹129 <span>/ year</span></div>
+        <div class="plan-desc">
+          <span class="check">✅</span> 8 searches per day<br>
+          <span class="check">✅</span> All 8 semesters<br>
+          <span class="check">✅</span> Supply results<br>
+          <span class="check">✅</span> PDF download<br>
+          <span class="check">✅</span> Highest queue priority
+        </div>
+        <button class="plan-cta">Choose Yearly</button>
       </div>
-      <button class="plan-cta">Choose Yearly</button>
     </div>
+    <button class="btn-primary" id="continueStep1" onclick="goToStep(2)" disabled>Select a Plan</button>
   </div>
 
-  <!-- UPI PAYMENT -->
-  <div class="upi-section">
-    <h3>💳 Pay via UPI</h3>
-    <div class="upi-id-box">
-      <span id="upiDisplay">{{ upi_id }}</span>
-      <button class="copy-btn" onclick="copyUPI()">Copy</button>
+  <!-- ===== STEP 2: PAY VIA UPI ===== -->
+  <div class="step-panel" id="step2">
+    <div class="pay-section">
+      <h3>💳 Pay via UPI</h3>
+      <div class="pay-amount-display">Pay <span id="payAmount">₹129</span></div>
+
+      <div class="upi-deep-wrap">
+        <button class="upi-deep-btn" id="gpayBtn" onclick="payUPI('gpay')">
+          <span class="icon">📱</span> Open Google Pay
+        </button>
+        <button class="upi-deep-btn" id="phonepeBtn" onclick="payUPI('phonepe')">
+          <span class="icon">📱</span> Open PhonePe
+        </button>
+        <button class="upi-deep-btn" id="paytmBtn" onclick="payUPI('paytm')">
+          <span class="icon">📱</span> Open Paytm
+        </button>
+      </div>
+
+      <div class="upi-id-box">
+        <span>UPI ID: <strong id="upiDisplay">{{ upi_id }}</strong></span>
+        <button class="copy-btn" onclick="copyUPI()">Copy</button>
+      </div>
+
+      <ul class="pay-steps">
+        <li>Send exactly <strong id="payAmountStep" style="color:#ffd740;">₹129</strong> to the UPI ID above</li>
+        <li>Copy the UTR / Transaction ID from the receipt</li>
+        <li>Come back and tap <strong>"I've Paid →"</strong></li>
+      </ul>
+
+      <button class="btn-primary pay-done-btn" onclick="goToStep(3)">I've Paid →</button>
     </div>
-    <ul class="upi-steps">
-      <li>Open any UPI app (GPay, PhonePe, Paytm)</li>
-      <li>Send <strong id="amountDisplay" style="color:#ffd740;">₹129</strong> to the UPI ID above</li>
-      <li>Copy the UTR / Transaction ID from the receipt</li>
-      <li>Paste it below and submit</li>
-    </ul>
+    <button class="btn-outline" onclick="goToStep(1)">← Choose a Different Plan</button>
   </div>
 
-  <!-- UTR FORM -->
-  <div class="utr-form">
-    <h3>📋 Submit Payment Details</h3>
-    <form method="POST" action="{{ url_for('submit_payment') }}">
-      <input type="hidden" name="plan" id="planInput" value="yearly" />
-      <div class="form-group">
-        <label>Selected Plan</label>
-        <input type="text" id="planDisplay" value="📦 Yearly — ₹129" readonly style="color:#00d4ff; cursor:default;" />
-      </div>
-      <div class="form-group">
-        <label>UTR / Transaction ID</label>
-        <input type="text" name="utr" placeholder="e.g. 426781234567" required />
-      </div>
-      <button type="submit" class="btn-primary">Submit Payment</button>
-    </form>
-    <p class="note">⏳ Approval usually within a few hours. You'll receive an email confirmation.</p>
+  <!-- ===== STEP 3: SUBMIT UTR ===== -->
+  <div class="step-panel" id="step3">
+    <div class="utr-section">
+      <h3>📋 Step 3: Submit Payment</h3>
+      <p class="note">Enter the UTR / Transaction ID from your UPI payment receipt.</p>
+      <form method="POST" action="{{ url_for('submit_payment') }}" id="utrForm">
+        <input type="hidden" name="plan" id="planInput" value="yearly" />
+        <div class="form-group">
+          <label>Selected Plan</label>
+          <input type="text" id="planDisplay" value="📦 Yearly — ₹129" readonly style="color:#d4405e; cursor:default;" />
+        </div>
+        <div class="form-group">
+          <label>UTR / Transaction ID</label>
+          <input type="text" name="utr" placeholder="e.g. 426781234567" required />
+        </div>
+        <button type="submit" class="btn-primary">Submit Payment</button>
+      </form>
+      <p class="note-bottom">⏳ Approval usually within a few hours. You'll receive an email confirmation.</p>
+    </div>
+    <button class="btn-outline" onclick="goToStep(2)">← Back to Payment</button>
   </div>
+
+</div>
+
+<!-- STICKY BOTTOM BAR -->
+<div class="sticky-bar" id="stickyBar">
+  <div class="info">
+    <span class="plan" id="stickyPlan">📦 Yearly</span>
+    <span class="price" id="stickyPrice">₹129</span>
+  </div>
+  <button class="btn-primary" id="stickyBtn" onclick="stickyAction()">Continue</button>
 </div>
 
 <script>
@@ -281,17 +411,91 @@
     monthly:'📅 Monthly — ₹49',
     yearly: '📦 Yearly — ₹129'
   };
+  const SHORT = { basic:'📋 Basic', monthly:'📅 Monthly', yearly:'📦 Yearly' };
 
+  let currentStep = 1;
+  let selectedPlan = 'yearly';
+
+  // ── Plan Selection ──
   function selectPlan(plan) {
-    document.getElementById('planInput').value = plan;
+    selectedPlan = plan;
     document.querySelectorAll('.plan-card').forEach(c => c.classList.remove('selected'));
     document.getElementById('card-' + plan).classList.add('selected');
-    document.getElementById('amountDisplay').textContent = '₹' + PRICES[plan];
+    document.getElementById('planInput').value = plan;
     document.getElementById('planDisplay').value = LABELS[plan];
+    document.getElementById('continueStep1').disabled = false;
+    document.getElementById('continueStep1').textContent = 'Continue with ' + SHORT[plan] + ' →';
+    // update sticky bar
+    document.getElementById('stickyPlan').textContent = SHORT[plan];
+    document.getElementById('stickyPrice').textContent = '₹' + PRICES[plan];
+    document.getElementById('stickyBar').classList.add('visible');
+    document.getElementById('stickyBtn').textContent = 'Continue';
+    document.getElementById('stickyBtn').disabled = false;
   }
 
+  // ── Step Navigation ──
+  function goToStep(step) {
+    currentStep = step;
+    document.querySelectorAll('.step-panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('step' + step).classList.add('active');
+    // update progress dots
+    for (let i = 1; i <= 3; i++) {
+      const dot = document.getElementById('s' + i);
+      dot.classList.remove('active', 'done');
+      if (i < step) dot.classList.add('done');
+      else if (i === step) dot.classList.add('active');
+      const line = document.getElementById('l' + i);
+      if (line) {
+        line.classList.remove('done');
+        if (i < step) line.classList.add('done');
+      }
+    }
+    // update sticky bar
+    const bar = document.getElementById('stickyBar');
+    if (step === 1) {
+      bar.classList.remove('visible');
+    } else {
+      bar.classList.add('visible');
+      if (step === 2) {
+        document.getElementById('stickyBtn').textContent = 'I\'ve Paid →';
+        document.getElementById('stickyBtn').disabled = false;
+      } else {
+        document.getElementById('stickyBtn').textContent = 'Submit Payment';
+        document.getElementById('stickyBtn').disabled = false;
+      }
+    }
+    // update amounts
+    document.getElementById('payAmount').textContent = '₹' + PRICES[selectedPlan];
+    document.getElementById('payAmountStep').textContent = '₹' + PRICES[selectedPlan];
+    // scroll to top
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function stickyAction() {
+    if (currentStep === 1) { goToStep(2); }
+    else if (currentStep === 2) { goToStep(3); }
+    else { document.getElementById('utrForm').submit(); }
+  }
+
+  // ── UPI Deep Link ──
+  function payUPI(app) {
+    const pa = '{{ upi_id }}';
+    const am = PRICES[selectedPlan];
+    const tn = encodeURIComponent(selectedPlan.charAt(0).toUpperCase() + selectedPlan.slice(1) + ' Subscription');
+    const upiLink = 'upi://pay?pa=' + encodeURIComponent(pa) + '&pn=College%20Tracker&am=' + am + '&cu=INR&tn=' + tn;
+    // try deep link
+    const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    if (isMobile) {
+      window.location.href = upiLink;
+    } else {
+      // Desktop fallback: just copy UPI ID
+      copyUPI();
+    }
+  }
+
+  // ── Copy UPI ID ──
   function copyUPI() {
-    navigator.clipboard.writeText(document.getElementById('upiDisplay').textContent).then(() => {
+    navigator.clipboard.writeText('{{ upi_id }}').then(() => {
       const btn = document.querySelector('.copy-btn');
       btn.textContent = 'Copied!';
       setTimeout(() => btn.textContent = 'Copy', 2000);

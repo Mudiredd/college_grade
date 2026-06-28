@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Verify Email — SR & BGNR College Tracker</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0d0709;
+      color: #fff;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .card {
+      background: #1c0f13;
+      border: 1px solid #ffffff11;
+      border-radius: 20px;
+      padding: 40px 36px;
+      width: 100%;
+      max-width: 460px;
+      margin: 20px;
+      text-align: center;
+    }
+    .icon { font-size: 3rem; margin-bottom: 16px; }
+    h1 { font-size: 1.4rem; color: #d4405e; margin-bottom: 12px; }
+    p { color: #ccc; line-height: 1.6; font-size: 0.92rem; }
+    .email { color: #fff; font-weight: bold; }
+    .btn {
+      display: inline-block;
+      margin-top: 24px;
+      padding: 12px 28px;
+      border-radius: 12px;
+      border: none;
+      background: linear-gradient(135deg, #d4405e, #96263e);
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: bold;
+      cursor: pointer;
+      text-decoration: none;
+      transition: opacity 0.3s;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn-outline {
+      background: transparent;
+      border: 2px solid #d4405e44;
+      color: #d4405e;
+      margin-left: 10px;
+    }
+    .flash-msg {
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .flash-success { background: #00e67622; color: #00e676; border: 1px solid #00e67644; }
+    .flash-error   { background: #ff525222; color: #ff5252; border: 1px solid #ff525244; }
+    .flash-info    { background: #d4405e22; color: #d4405e; border: 1px solid #d4405e44; }
+  </style>
+</head>
+<body>
+<div class="card">
+  {% if sent %}
+    <div class="icon">📧</div>
+    <h1>Verify Your Email</h1>
+    <p>We sent a verification link to<br/><span class="email">{{ email }}</span></p>
+    <p style="margin-top:12px;font-size:0.85rem;color:#a07878;">Check your inbox and spam folder. The link expires in 24 hours.</p>
+    <form method="POST" action="{{ url_for('auth.resend_verification') }}" style="margin-top:24px;">
+      <input type="hidden" name="email" value="{{ email }}" />
+      <button type="submit" class="btn">Resend Email</button>
+    </form>
+  {% else %}
+    <div class="icon">⚠️</div>
+    <h1>Email Send Failed</h1>
+    <p>We couldn't send the verification email right now.</p>
+    <form method="POST" action="{{ url_for('auth.resend_verification') }}" style="margin-top:24px;">
+      <input type="hidden" name="email" value="{{ email }}" />
+      <button type="submit" class="btn">Try Again</button>
+    </form>
+  {% endif %}
+  <p style="margin-top:24px;"><a href="{{ url_for('auth.login') }}" style="color:#d4405e;">Back to Login</a></p>
+</div>
+</body>
+</html>

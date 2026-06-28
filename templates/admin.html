@@ -6,10 +6,10 @@
   <title>Admin Panel — SR & BGNR</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Segoe UI', sans-serif; background: #0f0f1a; color: #fff; min-height: 100vh; }
+    body { font-family: 'Segoe UI', sans-serif; background: #0d0709; color: #fff; min-height: 100vh; }
 
     .topbar {
-      background: #1a1a2e; padding: 16px 24px;
+      background: #1c0f13; padding: 16px 24px;
       display: flex; justify-content: space-between; align-items: center;
       border-bottom: 1px solid #ffffff11;
     }
@@ -24,7 +24,7 @@
       gap: 16px; margin-bottom: 36px;
     }
     .stat-card {
-      background: #1a1a2e; border: 1px solid #ffffff11;
+      background: #1c0f13; border: 1px solid #ffffff11;
       border-radius: 14px; padding: 20px; text-align: center;
     }
     .stat-card .num   { font-size: 2rem; font-weight: bold; margin-bottom: 6px; }
@@ -50,7 +50,7 @@
     .flash-error   { background: #ff525222; color: #ff5252; border: 1px solid #ff525244; }
 
     .data-table {
-      width: 100%; border-collapse: collapse; background: #1a1a2e;
+      width: 100%; border-collapse: collapse; background: #1c0f13;
       border-radius: 14px; overflow: hidden; border: 1px solid #ffffff11;
     }
     .data-table th {
@@ -86,7 +86,7 @@
 
     .empty-state {
       text-align: center; padding: 32px; color: #aaa; font-size: 0.88rem;
-      background: #1a1a2e; border-radius: 14px; border: 1px solid #ffffff11;
+      background: #1c0f13; border-radius: 14px; border: 1px solid #ffffff11;
     }
     .admin-tag {
       background: #ffd74022; color: #ffd740;
@@ -120,7 +120,7 @@
       <div class="label">Approved (Recent)</div>
     </div>
     <div class="stat-card">
-      <div class="num" style="color:#00d4ff;">{{ users | length }}</div>
+      <div class="num" style="color:#d4405e;">{{ users | length }}</div>
       <div class="label">Total Users</div>
     </div>
   </div>
@@ -141,11 +141,11 @@
         <tbody>
           {% for p in pending %}
             <tr>
-              <td style="color:#555;">{{ loop.index }}</td>
+              <td style="color:#6a4848;">{{ loop.index }}</td>
               <td>
                 {% for u in users %}{% if u.id == p.user_id %}
                   {{ u.name }}<br>
-                  <span style="font-size:0.78rem; color:#aaa;">{{ u.email }}</span>
+                  <span style="font-size:0.78rem; color:#c09898;">{{ u.email }}</span>
                 {% endif %}{% endfor %}
               </td>
               <td>{{ p.plan | capitalize }}</td>
@@ -176,7 +176,7 @@
         <tbody>
           {% for p in approved %}
             <tr>
-              <td style="color:#555;">{{ loop.index }}</td>
+              <td style="color:#6a4848;">{{ loop.index }}</td>
               <td>{% for u in users %}{% if u.id == p.user_id %}{{ u.name }}{% endif %}{% endfor %}</td>
               <td>{{ p.plan | capitalize }}</td>
               <td style="color:#00e676;">₹{{ p.amount | int }}</td>
@@ -201,12 +201,12 @@
       <tbody>
         {% for u in users %}
           <tr>
-            <td style="color:#555;">{{ loop.index }}</td>
+            <td style="color:#6a4848;">{{ loop.index }}</td>
             <td>
               {{ u.name }}
               {% if u.is_admin %}<span class="admin-tag">Admin</span>{% endif %}
             </td>
-            <td style="color:#aaa;">{{ u.email }}</td>
+            <td style="color:#c09898;">{{ u.email }}</td>
             <td style="font-family:monospace;">{{ u.regd_no }}</td>
             <td>{{ u.created_at.strftime('%d %b %Y') }}</td>
             <td>
@@ -224,15 +224,25 @@
             <td>
               {% if not u.is_admin %}
                 {% set sub = u.subscriptions | selectattr('is_active', 'equalto', true) | first %}
+                <a href="{{ url_for('admin.reset_user_limits', user_id=u.id) }}"
+                   class="btn-approve"
+                   style="margin-right:4px;"
+                   onclick="return confirm('Reset today\'s search limit for {{ u.name }}?')">
+                  🔄 Reset
+                </a>
                 {% if sub %}
                   <a href="{{ url_for('admin.cancel_subscription', user_id=u.id) }}"
                      class="btn-reject"
                      onclick="return confirm('Cancel subscription for {{ u.name }}?')">
                     ❌ Cancel Sub
                   </a>
-                {% else %}
-                  <span style="color:#555; font-size:0.8rem;">—</span>
                 {% endif %}
+                <a href="{{ url_for('admin.delete_user', user_id=u.id) }}"
+                   class="btn-reject"
+                   style="margin-left:4px;"
+                   onclick="return confirm('Delete user {{ u.name }} and all their data? This cannot be undone.')">
+                  🗑 Delete
+                </a>
               {% endif %}
             </td>
           </tr>
