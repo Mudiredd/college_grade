@@ -8,29 +8,33 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 TIMEOUT       = 60
 BASE_URL      = "https://srbgnrexams.ac.in"
-LOGIN_URL_1   = f"{BASE_URL}/Students/MarksMemo/Login.aspx"
 LOGIN_URL_2   = f"{BASE_URL}/hdfc/Students/Login.aspx"
 DASHBOARD_URL = f"{BASE_URL}/hdfc/Students/DashBoard.aspx"
 MARKS_URL     = f"{BASE_URL}/hdfc/Students/MarksMemo/Login.aspx"
 
-EXAM_NAMES = {
-    1: "NOV-15", 2: "APR-16", 3: "NOV-16", 4: "APR-17", 5: "NOV-17",
-    6: "APR-18", 7: "JULY-18", 8: "NOV-18", 9: "APR-19", 10: "JUN-19",
-    11: "AUG-19", 12: "NOV-19", 13: "JAN-20", 14: "SEP-20", 15: "JAN-21",
-    16: "DEC-20", 17: "JULY-21", 18: "AUG-21", 19: "SEP-21", 20: "OCT-21",
-    21: "MAR-22", 22: "JULY-22", 23: "JUN-22", 24: "JAN-23", 25: "JUN-23",
-    26: "OCT-23", 27: "JAN-24", 28: "MAY-24", 35: "JUNE-24", 36: "OCT-24",
-    37: "NOV-24", 38: "APR-25", 39: "AUG-25", 40: "NOV-25", 41: "APR-26"
-}
+def scrape_exam_options(session, marks_page_res):
+    soup = BeautifulSoup(marks_page_res.text, "html.parser")
+    select = soup.find("select", {"name": "ctl00$ContentPlaceHolder1$ddlExam"})
+    if select is None:
+        raise ValueError("Exam dropdown not found on marks page")
+    exam_names = {}
+    for option in select.find_all("option"):
+        value = option.get("value", "").strip()
+        text = option.get_text(strip=True)
+        if value and value.isdigit():
+            exam_names[int(value)] = text
+    if not exam_names:
+        raise ValueError("No exam options found in dropdown")
+    return exam_names
 
-def get_exam_ids_for_student(regd_no):
+def get_exam_ids_for_student(regd_no, exam_names):
     try:
         joining_year = int(regd_no[2:4])
     except:
         joining_year = 15  # fallback to earliest
 
     relevant_ids = []
-    for exam_id, exam_name in EXAM_NAMES.items():
+    for exam_id, exam_name in exam_names.items():
         year_str = exam_name.split('-')[-1]
         try:
             year = int(year_str)
@@ -55,15 +59,6 @@ def get_viewstate(session, url):
         "__VIEWSTATEGENERATOR": _val(soup, "__VIEWSTATEGENERATOR"),
         "__EVENTVALIDATION": _val(soup, "__EVENTVALIDATION"),
     }
-
-def login_step1(session, regd_no, password="0"):
-    tokens = get_viewstate(session, LOGIN_URL_1)
-    payload = {**tokens,
-        "ctl00$ContentPlaceHolder1$txtRegdNo": regd_no,
-        "ctl00$ContentPlaceHolder1$txtPassword": password,
-        "ctl00$ContentPlaceHolder1$cmbSubmit": "Get Data"
-    }
-    return session.post(LOGIN_URL_1, data=payload, verify=False, timeout=TIMEOUT)
 
 def login_step2(session, regd_no, password="0"):
     tokens = get_viewstate(session, LOGIN_URL_2)
@@ -104,29 +99,30 @@ def get_marks_pdf(session, marks_page_res, exam_id, semester):
 def parse_pdf(pdf_bytes, exam_name, semester):
     subjects = []
     with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-        tables = pdf.pages[0].extract_tables()
-        if not tables:
-            return None
-        for table in tables:
-            for row in table:
-                if not row or len(row) < 5:
-                    continue
-                col1 = (row[1] or "").split("\n")
-                col3 = (row[3] or "").split("\n")
-                col4 = (row[4] or "").split("\n")
-                if col1[0].strip() == "COURSE TITLE":
-                    continue
-                for i in range(len(col1)):
-                    course = col1[i].strip() if i < len(col1) else ""
-                    grade  = col3[i].strip() if i < len(col3) else ""
-                    credit = col4[i].strip() if i < len(col4) else "0"
-                    if len(course) > 3:
-                        subjects.append({
-                            "subject": course,
-                            "grade": grade,
-                            "credits": credit,
-                            "status": "pass" if grade not in ["F", "ABS", ""] else "fail",
-                            "exam": exam_name,
-                            "semester": semester
-                        })
+        for page in pdf.pages:
+            tables = page.extract_tables()
+            if not tables:
+                continue
+            for table in tables:
+                for row in table:
+                    if not row or len(row) < 5:
+                        continue
+                    col1 = (row[1] or "").split("\n")
+                    col3 = (row[3] or "").split("\n")
+                    col4 = (row[4] or "").split("\n")
+                    if col1[0].strip() == "COURSE TITLE":
+                        continue
+                    for i in range(len(col1)):
+                        course = col1[i].strip() if i < len(col1) else ""
+                        grade  = col3[i].strip() if i < len(col3) else ""
+                        credit = col4[i].strip() if i < len(col4) else "0"
+                        if len(course) > 3:
+                            subjects.append({
+                                "subject": course,
+                                "grade": grade,
+                                "credits": credit,
+                                "status": "pass" if grade not in ["F", "ABS", ""] else "fail",
+                                "exam": exam_name,
+                                "semester": semester
+                            })
     return subjects if subjects else None

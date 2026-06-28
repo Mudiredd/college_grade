@@ -90,31 +90,30 @@ def approve_payment(payment_id):
         s.is_active = False
 
     # ── Create new subscription ──
-    end_date = (
-        datetime.now() + timedelta(days=30)
-        if payment.plan == 'monthly'
-        else None
-    )
+    plan_days = {'basic': None, 'monthly': 30, 'yearly': 365}
+    plan_priority = {'basic': 2, 'monthly': 1, 'yearly': 0}
+    days = plan_days.get(payment.plan)
+    end_date = datetime.now() + timedelta(days=days) if days else None
 
     sub = Subscription(
         user_id=payment.user_id,
         plan=payment.plan,
+        priority=plan_priority.get(payment.plan, 3),
         end_date=end_date
     )
+
+    # update user plan
+    user = User.query.get(payment.user_id)
+    if user:
+        user.plan = payment.plan
 
     db.session.add(sub)
     db.session.commit()
 
-    user = User.query.get(payment.user_id)
-
     # ── Send approval email ──
     try:
-
-        plan_text = (
-            '1 Month'
-            if payment.plan == 'monthly'
-            else 'Lifetime'
-        )
+        plan_labels = {'basic': 'Basic — 1 Search', 'monthly': 'Monthly — 30 Days', 'yearly': 'Yearly — 365 Days'}
+        plan_text = plan_labels.get(payment.plan, payment.plan)
 
         msg = Message(
             subject='✅ Payment Approved — SR & BGNR College Tracker',

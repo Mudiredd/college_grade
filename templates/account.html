@@ -4,103 +4,115 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Account — SR & BGNR College Tracker</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Segoe UI', sans-serif; background: #0f0f1a; color: #fff; min-height: 100vh; }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Inter','Segoe UI',sans-serif; background:#0b0b16; color:#fff; min-height:100vh; }
 
     .topbar {
-      background: #1a1a2e; padding: 16px 24px;
-      display: flex; justify-content: space-between; align-items: center;
-      border-bottom: 1px solid #ffffff11;
+      position:sticky; top:0; z-index:100;
+      background:rgba(26,26,46,.85); backdrop-filter:blur(14px);
+      padding:12px 24px; display:flex; justify-content:space-between; align-items:center;
+      border-bottom:1px solid rgba(255,255,255,.06);
     }
-    .topbar-title { color: #00d4ff; font-weight: bold; font-size: 1.1rem; }
-    .topbar-links { display: flex; gap: 16px; align-items: center; }
-    .topbar-links a { color: #aaa; font-size: 0.85rem; text-decoration: none; }
-    .topbar-links a:hover { color: #fff; }
+    .topbar-title { color:#fff; font-weight:700; font-size:.95rem; }
+    .topbar-title span { color:#00d4ff; }
+    .topbar-links { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+    .topbar-links a { color:#999; font-size:.82rem; text-decoration:none; padding:6px 12px; border-radius:8px; transition:all .2s; white-space:nowrap; }
+    .topbar-links a:hover { color:#fff; background:rgba(255,255,255,.06); }
 
-    .container { max-width: 860px; margin: 0 auto; padding: 36px 20px; }
-    .section { margin-bottom: 32px; }
+    .container { max-width:860px; margin:0 auto; padding:36px 20px; }
+    .section { margin-bottom:28px; }
     .section-title {
-      font-size: 1rem; font-weight: bold; color: #aaa;
-      text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 14px;
+      font-size:.82rem; font-weight:700; color:#666;
+      text-transform:uppercase; letter-spacing:.06em; margin-bottom:12px;
     }
 
     .profile-card {
-      background: #1a1a2e; border: 1px solid #ffffff11;
-      border-radius: 16px; padding: 24px;
-      display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+      background:rgba(26,26,46,.75); backdrop-filter:blur(10px);
+      border:1px solid rgba(255,255,255,.06); border-radius:16px;
+      padding:24px; display:flex; align-items:center; gap:20px; flex-wrap:wrap;
     }
     .avatar {
-      width: 56px; height: 56px; border-radius: 50%;
-      background: linear-gradient(135deg, #00d4ff, #0077ff);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 1.5rem; font-weight: bold; color: #fff; flex-shrink: 0;
+      width:52px; height:52px; border-radius:50%;
+      background:linear-gradient(135deg,#00d4ff,#0077ff);
+      display:flex; align-items:center; justify-content:center;
+      font-size:1.3rem; font-weight:800; color:#fff; flex-shrink:0;
     }
-    .profile-info h3 { font-size: 1.1rem; margin-bottom: 4px; }
-    .profile-info p  { color: #aaa; font-size: 0.85rem; }
+    .profile-info h3 { font-size:1.05rem; font-weight:700; margin-bottom:2px; }
+    .profile-info p  { color:#888; font-size:.83rem; line-height:1.6; }
+    .profile-info .uuid-text { color:#555; font-size:.75rem; font-family:monospace; }
 
     .sub-card {
-      background: #1a1a2e; border: 1px solid #ffffff11;
-      border-radius: 16px; padding: 24px;
+      background:rgba(26,26,46,.75); backdrop-filter:blur(10px);
+      border:1px solid rgba(255,255,255,.06); border-radius:16px; padding:24px;
     }
-    .sub-active { border-color: #00e67633; background: #00e67608; }
+    .sub-active { border-color:rgba(0,230,118,.25); background:rgba(0,230,118,.04); }
 
     .sub-header {
-      display: flex; justify-content: space-between;
-      align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 14px;
+      display:flex; justify-content:space-between;
+      align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px;
     }
-    .sub-badge { padding: 4px 14px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; }
-    .badge-active   { background: #00e67622; color: #00e676; }
-    .badge-inactive { background: #ff525222; color: #ff5252; }
-    .sub-details { color: #aaa; font-size: 0.85rem; line-height: 2; }
-    .sub-details strong { color: #fff; }
+    .sub-badge { padding:4px 14px; border-radius:20px; font-size:.78rem; font-weight:700; }
+    .badge-active   { background:rgba(0,230,118,.12); color:#00e676; }
+    .badge-inactive { background:rgba(255,82,82,.12); color:#ff5252; }
+    .badge-free     { background:rgba(0,212,255,.1); color:#00d4ff; }
 
-    .usage-bar-wrap { margin-top: 14px; }
-    .usage-label {
-      display: flex; justify-content: space-between;
-      font-size: 0.8rem; color: #aaa; margin-bottom: 6px;
-    }
-    .usage-bar-bg { background: #ffffff11; border-radius: 999px; height: 8px; overflow: hidden; }
-    .usage-bar-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #00d4ff, #0077ff); }
+    .sub-details { color:#999; font-size:.85rem; line-height:2; }
+    .sub-details strong { color:#ddd; }
+
+    .usage-bar-wrap { margin-top:14px; }
+    .usage-label { display:flex; justify-content:space-between; font-size:.8rem; color:#888; margin-bottom:4px; }
+    .usage-bar-bg { background:rgba(255,255,255,.06); border-radius:999px; height:6px; overflow:hidden; }
+    .usage-bar-fill { height:100%; border-radius:999px; background:linear-gradient(90deg,#00d4ff,#0077ff); }
 
     .btn-subscribe {
-      display: inline-block; margin-top: 16px; padding: 10px 24px;
-      border-radius: 10px; border: none;
-      background: linear-gradient(135deg, #00d4ff, #0077ff);
-      color: #fff; font-size: 0.9rem; font-weight: bold;
-      text-decoration: none; transition: opacity 0.3s;
+      display:inline-block; margin-top:14px; padding:10px 22px;
+      border-radius:10px; border:none;
+      background:linear-gradient(135deg,#00d4ff,#0077ff);
+      color:#fff; font-size:.85rem; font-weight:700; font-family:inherit;
+      text-decoration:none; transition:opacity .3s;
     }
-    .btn-subscribe:hover { opacity: 0.85; }
+    .btn-subscribe:hover { opacity:.85; }
 
     .data-table {
-      width: 100%; border-collapse: collapse; background: #1a1a2e;
-      border-radius: 14px; overflow: hidden; border: 1px solid #ffffff11;
+      width:100%; border-collapse:collapse;
+      background:rgba(26,26,46,.6); backdrop-filter:blur(8px);
+      border-radius:14px; overflow:hidden; border:1px solid rgba(255,255,255,.06);
     }
     .data-table th {
-      text-align: left; padding: 12px 16px; background: #ffffff08;
-      color: #aaa; font-size: 0.78rem; text-transform: uppercase;
+      text-align:left; padding:12px 16px; background:rgba(255,255,255,.04);
+      color:#666; font-size:.75rem; text-transform:uppercase; letter-spacing:.04em; font-weight:700;
     }
-    .data-table td {
-      padding: 12px 16px; border-top: 1px solid #ffffff08;
-      font-size: 0.88rem; color: #ccc;
-    }
-    .data-table tr:first-child td { border-top: none; }
+    .data-table td { padding:12px 16px; border-top:1px solid rgba(255,255,255,.04); font-size:.85rem; color:#bbb; }
+    .data-table tr:first-child td { border-top:none; }
 
-    .status-badge { padding: 3px 10px; border-radius: 8px; font-size: 0.78rem; font-weight: bold; }
-    .status-pending  { background: #ffd74022; color: #ffd740; }
-    .status-approved { background: #00e67622; color: #00e676; }
-    .status-rejected { background: #ff525222; color: #ff5252; }
+    .status-badge { padding:3px 10px; border-radius:8px; font-size:.75rem; font-weight:700; }
+    .status-pending  { background:rgba(255,215,64,.12); color:#ffd740; }
+    .status-approved { background:rgba(0,230,118,.12); color:#00e676; }
+    .status-rejected { background:rgba(255,82,82,.12); color:#ff5252; }
 
     .empty-state {
-      text-align: center; padding: 32px; color: #aaa; font-size: 0.88rem;
-      background: #1a1a2e; border-radius: 14px; border: 1px solid #ffffff11;
+      text-align:center; padding:32px; color:#666; font-size:.85rem;
+      background:rgba(26,26,46,.6); border-radius:14px; border:1px solid rgba(255,255,255,.06);
+    }
+
+    @media(max-width:480px){
+      .topbar { padding:10px 14px; flex-direction:column; gap:6px; }
+      .topbar-links { width:100%; justify-content:center; }
+      .topbar-links a { font-size:.78rem; padding:4px 8px; }
+      .container { padding:20px 12px; }
+      .profile-card { padding:18px; gap:14px; }
+      .sub-card { padding:18px; }
+      .data-table { display:block; overflow-x:auto; white-space:nowrap; font-size:.8rem; }
+      .data-table th, .data-table td { padding:8px 10px; }
     }
   </style>
 </head>
 <body>
 
 <div class="topbar">
-  <div class="topbar-title">🎓 SR & BGNR College Tracker</div>
+  <div class="topbar-title">SR & BGNR <span>Tracker</span></div>
   <div class="topbar-links">
     <a href="{{ url_for('index') }}">🔍 Search</a>
     <a href="{{ url_for('subscribe') }}">💳 Subscribe</a>
@@ -113,52 +125,68 @@
   <div class="section">
     <div class="section-title">Profile</div>
     <div class="profile-card">
-      <div class="avatar">{{ current_user.name[0].upper() }}</div>
+      <div class="avatar">{{ current_user.name[0]|upper }}</div>
       <div class="profile-info">
         <h3>{{ current_user.name }}</h3>
         <p>{{ current_user.email }} &nbsp;·&nbsp; Reg No: {{ current_user.regd_no }}</p>
         <p>Member since {{ current_user.created_at.strftime('%d %b %Y') }}</p>
+        <p class="uuid-text">Support ID: {{ current_user.uuid }}</p>
       </div>
     </div>
   </div>
 
   <div class="section">
     <div class="section-title">Subscription</div>
+    {% set plan_label = current_user.plan|capitalize %}
+    {% set plan_icons = {'free':'🎓','basic':'📋','monthly':'📅','yearly':'📦'} %}
+    {% set plan_icon = plan_icons.get(current_user.plan, '🔍') %}
     <div class="sub-card {{ 'sub-active' if sub else '' }}">
       <div class="sub-header">
         <strong style="font-size:1rem;">
           {% if sub %}
-            {{ '📅 Monthly Plan' if sub.plan == 'monthly' else '♾️ Lifetime Plan' }}
+            {{ plan_icon }} {{ plan_label }} Plan
           {% else %}
-            No Active Subscription
+            {{ plan_icon }} {{ plan_label }} (No purchase)
           {% endif %}
         </strong>
-        <span class="sub-badge {{ 'badge-active' if sub else 'badge-inactive' }}">
-          {{ '✅ Active' if sub else '❌ Inactive' }}
+        <span class="sub-badge {{ 'badge-active' if sub else ('badge-free' if current_user.plan == 'free' else 'badge-inactive') }}">
+          {% if sub %}✅ Active
+          {% elif current_user.plan == 'free' %}🎓 Free Trial
+          {% else %}❌ Inactive{% endif %}
         </span>
       </div>
 
       {% if sub %}
         <div class="sub-details">
+          Plan: <strong>{{ sub.plan | capitalize }}</strong><br>
           {% if sub.end_date %}
-            Expires: <strong>{{ sub.end_date.strftime('%d %b %Y') }}</strong>
-          {% else %}
-            Access: <strong>Lifetime</strong>
+            Expires: <strong>{{ sub.end_date.strftime('%d %b %Y') }}</strong><br>
           {% endif %}
-          <br>
-          Today's searches: <strong>{{ searches_today }} / 5</strong>
+          {% set limits = {'basic':1,'monthly':4,'yearly':8} %}
+          {% set daily_limit = limits.get(current_user.plan, 0) %}
+          {% if daily_limit > 0 %}
+            Today's searches: <strong>{{ searches_today }} / {{ daily_limit }}</strong>
+          {% else %}
+            Searches: <strong>{{ searches_today }} today</strong>
+          {% endif %}
         </div>
+        {% set pct = (searches_today / daily_limit * 100) if daily_limit > 0 else 0 %}
         <div class="usage-bar-wrap">
           <div class="usage-label">
             <span>Daily Usage</span>
-            <span>{{ searches_today }}/5</span>
+            <span>{{ searches_today }}/{{ daily_limit }}</span>
           </div>
           <div class="usage-bar-bg">
-            <div class="usage-bar-fill" id="usageBar"></div>
+            <div class="usage-bar-fill" id="usageBar" style="width:{{ pct|round }}%"></div>
           </div>
         </div>
+      {% elif current_user.plan == 'free' %}
+        <p style="color:#888; font-size:.85rem; margin-bottom:14px; line-height:1.6;">
+          You're on the <strong>Free Trial</strong>. Upgrade to unlock all 8 semesters, PDF downloads, and higher queue priority.
+        </p>
+        <a href="{{ url_for('subscribe') }}" class="btn-subscribe">Upgrade Now</a>
       {% else %}
-        <p style="color:#aaa; font-size:0.85rem; margin-bottom:14px;">
+        <p style="color:#888; font-size:.85rem; margin-bottom:14px;">
           Subscribe to access your academic results.
         </p>
         <a href="{{ url_for('subscribe') }}" class="btn-subscribe">Get Subscription</a>
@@ -170,9 +198,7 @@
     <div class="section-title">Recent Searches</div>
     {% if searches %}
       <table class="data-table">
-        <thead>
-          <tr><th>#</th><th>Registration No</th><th>Searched At</th></tr>
-        </thead>
+        <thead><tr><th>#</th><th>Registration No</th><th>Searched At</th></tr></thead>
         <tbody>
           {% for s in searches %}
             <tr>
@@ -192,16 +218,14 @@
     <div class="section-title">Payment History</div>
     {% if payments %}
       <table class="data-table">
-        <thead>
-          <tr><th>#</th><th>Plan</th><th>Amount</th><th>UTR</th><th>Status</th><th>Date</th></tr>
-        </thead>
+        <thead><tr><th>#</th><th>Plan</th><th>Amount</th><th>UTR</th><th>Status</th><th>Date</th></tr></thead>
         <tbody>
           {% for p in payments %}
             <tr>
               <td style="color:#555;">{{ loop.index }}</td>
               <td>{{ p.plan | capitalize }}</td>
               <td>₹{{ p.amount | int }}</td>
-              <td style="font-family:monospace; font-size:0.82rem;">{{ p.utr }}</td>
+              <td style="font-family:monospace; font-size:.8rem;">{{ p.utr }}</td>
               <td>
                 <span class="status-badge status-{{ p.status }}">
                   {% if p.status == 'pending' %}⏳ Pending
@@ -221,9 +245,5 @@
 
 </div>
 
-<script>
-  const pct = Math.min({{ searches_today }} * 20, 100);
-  document.getElementById("usageBar").style.width = pct + "%";
-</script>
 </body>
 </html>

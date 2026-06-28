@@ -1,22 +1,27 @@
 import os
+import logging
+import time
+import json
+import uuid
+import threading
+from datetime import datetime
+from io import BytesIO
+from concurrent.futures import ThreadPoolExecutor
+
+import requests
 from flask import (
     Flask, render_template, request, jsonify,
     Response, redirect, url_for, flash, send_file
 )
-
 from flask_cors import CORS
 from flask_login import LoginManager, login_required, current_user
-from datetime import datetime
-from io import BytesIO
-import time
-import requests
-import json
 
+from config import Config
 # ===================== MODELS =====================
 from models import db, User, Subscription, Payment, SearchHistory
 
 # ===================== EXTENSIONS =====================
-from extensions import bcrypt, mail, init_serializer
+from extensions import bcrypt, mail, migrate, limiter, init_serializer
 
 # ===================== BLUEPRINTS =====================
 from auth import auth_bp
@@ -28,34 +33,264 @@ from scraper import (
     click_marks_memo,
     get_marks_pdf,
     parse_pdf,
-    EXAM_NAMES,
-    get_exam_ids_for_student
+    get_exam_ids_for_student,
+    scrape_exam_options
 )
+
+_CACHE_TTL = 600
+_result_cache = {}
+
+# ===================== POLLING QUEUE =====================
+_PLAN_PRIORITY = {'yearly': 0, 'monthly': 1, 'basic': 2, 'free': 3}
+_task_id_counter = 0
+_task_queue = []  # [(priority, counter, task_id, regd_no, password, user_id), ...]
+_task_queue_lock = threading.Lock()
+_task_state = {}  # task_id -> dict with status, progress, step, data, error
+_task_cancel = set()  # task_ids marked for cancellation
+_executor = ThreadPoolExecutor(max_workers=7)
+_dispatcher_running = True
+
+
+def _next_task_id():
+    global _task_id_counter
+    _task_id_counter += 1
+    return str(_task_id_counter)
+
+
+def get_plan_priority(user):
+    from models import Subscription
+    sub = Subscription.query.filter_by(
+        user_id=user.id, is_active=True
+    ).order_by(Subscription.id.desc()).first()
+    if not sub:
+        return _PLAN_PRIORITY['free']
+    return _PLAN_PRIORITY.get(sub.plan, _PLAN_PRIORITY['free'])
+
+
+def get_user_plan(user):
+    from models import Subscription
+    sub = Subscription.query.filter_by(
+        user_id=user.id, is_active=True
+    ).order_by(Subscription.id.desc()).first()
+    if not sub:
+        return 'free'
+    return sub.plan
+
+
+def check_search_limit(user):
+    plan = get_user_plan(user)
+    if plan == 'free':
+        return True, None
+    if plan == 'basic':
+        total = SearchHistory.query.filter_by(user_id=user.id).count()
+        if total >= 1:
+            return False, 'Basic plan limit reached (1 search total)'
+    elif plan == 'monthly':
+        today = datetime.now().date()
+        cnt = SearchHistory.query.filter(
+            SearchHistory.user_id == user.id,
+            db.func.date(SearchHistory.searched_at) == today
+        ).count()
+        if cnt >= 4:
+            return False, 'Monthly plan daily limit reached (4/day)'
+    elif plan == 'yearly':
+        today = datetime.now().date()
+        cnt = SearchHistory.query.filter(
+            SearchHistory.user_id == user.id,
+            db.func.date(SearchHistory.searched_at) == today
+        ).count()
+        if cnt >= 8:
+            return False, 'Yearly plan daily limit reached (8/day)'
+    return True, None
+
+
+def _dispatcher():
+    while _dispatcher_running:
+        task = None
+        with _task_queue_lock:
+            running = sum(1 for t in _task_state if _task_state[t]['status'] == 'running')
+            if _task_queue and running < 7:
+                _task_queue.sort(key=lambda x: (x[0], x[1]))
+                running_count = running
+                if running_count < 7:
+                    task = _task_queue.pop(0)
+        if task:
+            priority, counter, task_id, regd_no, password, user_id = task
+            _task_state[task_id] = {
+                'status': 'running', 'progress': 0, 'step': 'queued',
+                'message': 'Starting...', 'semester': None, 'data': None, 'error': None,
+                'regd_no': regd_no, 'user_id': user_id
+            }
+            _task_state[task_id]['step'] = 'logging_in'
+            _task_state[task_id]['message'] = 'Logging in...'
+            _executor.submit(_run_scrape, task_id, regd_no, password, user_id)
+        else:
+            time.sleep(0.5)
+
+
+def _update_task_state(task_id, **kwargs):
+    if task_id in _task_state:
+        _task_state[task_id].update(kwargs)
+
+
+def _run_scrape(task_id, regd_no, password, user_id):
+    logger.info(f"Task {task_id}: scraping {regd_no}")
+    try:
+        if task_id in _task_cancel:
+            _update_task_state(task_id, status='cancelled', message='Cancelled')
+            _task_cancel.discard(task_id)
+            return
+
+        cached = _result_cache.get(regd_no)
+        if cached is not None and time.time() - cached[0] < _CACHE_TTL:
+            _update_task_state(task_id, status='done', data=cached[1], progress=100)
+            return
+
+        session = requests.Session()
+        session.headers.update({
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5",
+            "Referer": "https://srbgnrexams.ac.in/",
+        })
+        from requests.adapters import HTTPAdapter
+        from urllib3.util.retry import Retry
+        retry = Retry(total=2, backoff_factor=2, status_forcelist=[500, 502, 503, 504])
+        adapter = HTTPAdapter(max_retries=retry)
+        session.mount("https://", adapter)
+        session.mount("http://", adapter)
+
+        _update_task_state(task_id, step='logging_in', message='Logging in...')
+        dashboard = login_step2(session, regd_no, password)
+
+        _update_task_state(task_id, step='marks_memo', message='Opening marks memo...')
+        marks_page = click_marks_memo(session, dashboard)
+
+        _update_task_state(task_id, step='exam_list', message='Fetching exam list...')
+        exam_names = scrape_exam_options(session, marks_page)
+
+        exam_ids = get_exam_ids_for_student(regd_no, exam_names)
+        _update_task_state(task_id, step='scanning', message=f'Scanning {len(exam_ids)} exam sessions...')
+
+        all_data = {sem: {"regular": None, "supplies": []} for sem in range(1, 9)}
+        sem1_found_idx = -1
+
+        for idx, exam_id in enumerate(exam_ids):
+            if task_id in _task_cancel:
+                _update_task_state(task_id, status='cancelled', message='Cancelled')
+                _task_cancel.discard(task_id)
+                return
+            exam_name = exam_names.get(exam_id, str(exam_id))
+            _update_task_state(task_id, step='scanning', message=f'Scanning sem 1 in {exam_name}...')
+            res = get_marks_pdf(session, marks_page, str(exam_id), "1")
+            if "pdf" not in res.headers.get("Content-Type", ""):
+                continue
+            parsed = parse_pdf(res.content, exam_name, 1)
+            if parsed:
+                all_data[1]["regular"] = {"exam": exam_name, "subjects": parsed}
+                sem1_found_idx = idx
+                sem_merged = _merge_sem(all_data[1]["regular"], all_data[1]["supplies"])
+                _update_task_state(task_id, semester={'semester': 1, 'data': sem_merged})
+                break
+
+        if sem1_found_idx == -1:
+            _update_task_state(task_id, status='error', error='Semester 1 not found')
+            return
+
+        # ---- free trial: show only sem 1, skip PDF ----
+        plan = get_user_plan_for_id(user_id)
+        if plan == 'free':
+            merged = {'1': _merge_sem(all_data[1]["regular"], all_data[1]["supplies"])}
+            _result_cache[regd_no] = (time.time(), merged)
+            _update_task_state(task_id, status='done', data=merged, progress=100)
+            return
+
+        remaining = exam_ids[sem1_found_idx:]
+        highest_found = 1
+        total = len(remaining) * 8
+        done = 0
+
+        for exam_id in remaining:
+            if task_id in _task_cancel:
+                _update_task_state(task_id, status='cancelled', message='Cancelled')
+                _task_cancel.discard(task_id)
+                return
+            exam_name = exam_names.get(exam_id, str(exam_id))
+            sems_to_check = range(1, min(highest_found + 2, 9))
+            for sem in sems_to_check:
+                done += 1
+                progress = int((done / total) * 100)
+                _update_task_state(task_id, progress=progress, message=f'Scanning {exam_name} sem {sem}...')
+                time.sleep(3)
+                res = get_marks_pdf(session, marks_page, str(exam_id), str(sem))
+                if "pdf" not in res.headers.get("Content-Type", ""):
+                    marks_page = res
+                    continue
+                parsed = parse_pdf(res.content, exam_name, sem)
+                if not parsed:
+                    continue
+                is_supply = len(parsed) < 5
+                if not is_supply and all_data[sem]["regular"] is None:
+                    all_data[sem]["regular"] = {"exam": exam_name, "subjects": parsed}
+                    highest_found = max(highest_found, sem)
+                    sem_merged = _merge_sem(all_data[sem]["regular"], all_data[sem]["supplies"])
+                    _update_task_state(task_id, semester={'semester': sem, 'data': sem_merged})
+                elif is_supply:
+                    all_data[sem]["supplies"].append({"exam": exam_name, "subjects": parsed})
+                    if all_data[sem]["regular"]:
+                        sem_merged = _merge_sem(all_data[sem]["regular"], all_data[sem]["supplies"])
+                        _update_task_state(task_id, semester={'semester': sem, 'data': sem_merged})
+
+        merged = {str(k): _merge_sem(v["regular"], v["supplies"]) if v["regular"] else None for k, v in all_data.items()}
+        _result_cache[regd_no] = (time.time(), merged)
+        _update_task_state(task_id, status='done', data=merged, progress=100)
+        logger.info(f"Task {task_id}: done for {regd_no}")
+
+    except Exception as e:
+        logger.error(f"Task {task_id}: error - {e}")
+        _update_task_state(task_id, status='error', error=str(e))
+
+
+def get_user_plan_for_id(user_id):
+    from models import Subscription
+    sub = Subscription.query.filter_by(
+        user_id=user_id, is_active=True
+    ).order_by(Subscription.id.desc()).first()
+    if not sub:
+        return 'free'
+    return sub.plan
+
+
+# start dispatcher
+_dispatcher_thread = threading.Thread(target=_dispatcher, daemon=True)
+_dispatcher_thread.start()
 
 # ===================== APP =====================
 app = Flask(__name__, instance_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance'))
-CORS(app)
+CORS(app, origins=[
+    'http://localhost:5000',
+    'http://127.0.0.1:5000',
+    'https://srbgnrcollegetracker.pythonanywhere.com',
+    'https://srbgnr-college-tracker.vercel.app',
+], supports_credentials=True)
 
 # ===================== CONFIG =====================
-app.config['SECRET_KEY'] = 'srbgnr_secret_key_2026'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance', 'college_tracker.db')
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config.from_object(Config)
 
-app.config['MAIL_SERVER'] = 'smtp.gmail.com'
-app.config['MAIL_PORT'] = 587
-app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = 'vishnu12shiva@gmail.com'
-app.config['MAIL_PASSWORD'] = 'YOUR_APP_PASSWORD'
-
-app.config['ADMIN_EMAIL'] = 'vishnu12shiva@gmail.com'
-app.config['ADMIN_PASSWORD'] = 'sravan123'
-
-UPI_ID = 'mudireddyreddy68@nyes'
+# ===================== LOGGING =====================
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger(__name__)
 
 # ===================== INIT =====================
 db.init_app(app)
 bcrypt.init_app(app)
 mail.init_app(app)
+migrate.init_app(app, db)
+limiter.init_app(app)
 
 with app.app_context():
     init_serializer(app.config['SECRET_KEY'])
@@ -71,6 +306,23 @@ def load_user(user_id):
 # ===================== BLUEPRINTS =====================
 app.register_blueprint(auth_bp)
 app.register_blueprint(admin_bp)
+
+# ===================== ERROR HANDLERS =====================
+@app.errorhandler(404)
+def not_found(e):
+    return jsonify({'error': 'Not found'}), 404
+
+
+@app.errorhandler(500)
+def server_error(e):
+    logger.error(f"Internal server error: {e}")
+    return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.errorhandler(429)
+def ratelimit_error(e):
+    return jsonify({'error': 'Rate limit exceeded. Please slow down.'}), 429
+
 
 # ===================== HELPERS =====================
 def get_active_subscription(user):
@@ -111,10 +363,13 @@ def index():
     sub = get_active_subscription(current_user)
     searches_today = get_searches_today(current_user)
 
+    plan = get_user_plan(current_user)
+
     return render_template(
         'index.html',
         user=current_user,
         sub=sub,
+        plan=plan,
         searches_today=searches_today,
         searches_left=999
     )
@@ -137,16 +392,18 @@ def subscribe():
     if sub:
         return redirect(url_for('index'))
 
-    return render_template('subscribe.html', upi_id=UPI_ID)
+    return render_template('subscribe.html', upi_id=app.config['UPI_ID'])
 
 # ===================== PAYMENT =====================
 @app.route('/submit-payment', methods=['POST'])
 @login_required
+@limiter.limit("5 per minute")
 def submit_payment():
     utr = request.form.get('utr').strip()
     plan = request.form.get('plan')
 
-    amount = 50.0 if plan == 'monthly' else 129.0
+    amounts = {'basic': 15.0, 'monthly': 49.0, 'yearly': 129.0}
+    amount = amounts.get(plan, 0)
 
     payment = Payment(
         user_id=current_user.id,
@@ -166,6 +423,7 @@ def submit_payment():
 @login_required
 def account():
     sub = get_active_subscription(current_user)
+    searches_today = get_searches_today(current_user)
 
     searches = SearchHistory.query.filter_by(
         user_id=current_user.id
@@ -178,6 +436,7 @@ def account():
     return render_template(
         'account.html',
         sub=sub,
+        searches_today=searches_today,
         searches=searches,
         payments=payments
     )
@@ -218,144 +477,72 @@ def _merge_sem(reg, supplies):
 # =========================================================
 @app.route('/get_results', methods=['POST'])
 @login_required
+@limiter.limit("10 per minute")
 def get_results():
-
-    # ---- subscription check ----
-    sub = get_active_subscription(current_user)
-    if not sub:
-        return jsonify({'type': 'error', 'message': 'No active subscription!'}), 403
-
-    # ---- daily limit (disabled) ----
-    # if get_searches_today(current_user) >= 5:
-    #     return jsonify({'type': 'error', 'message': 'Daily limit reached!'}), 429
+    ok, msg = check_search_limit(current_user)
+    if not ok:
+        return jsonify({'error': msg}), 429
 
     data = request.json
-    regd_no = data.get("regd_no")
-    password = data.get("password", "0")
+    regd_no = data.get("regd_no", "").strip()
+    password = data.get("password", "0").strip()
 
-    # save history
+    if not regd_no:
+        return jsonify({'error': 'Registration number is required'}), 400
+
     history = SearchHistory(user_id=current_user.id, regd_no=regd_no)
     db.session.add(history)
     db.session.commit()
 
-    def generate():
+    priority = get_plan_priority(current_user)
+    task_id = _next_task_id()
 
-        session = requests.Session()
-        session.headers.update({
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.5",
-            "Referer": "https://srbgnrexams.ac.in/",
-        })
-        from requests.adapters import HTTPAdapter
-        from urllib3.util.retry import Retry
-        retry = Retry(total=2, backoff_factor=2, status_forcelist=[500, 502, 503, 504])
-        adapter = HTTPAdapter(max_retries=retry)
-        session.mount("https://", adapter)
-        session.mount("http://", adapter)
+    with _task_queue_lock:
+        queue_pos = len(_task_queue)
+        _task_queue.append((priority, task_id, task_id, regd_no, password, current_user.id))
+        if task_id not in _task_state:
+            _task_state[task_id] = {
+                'status': 'queued', 'progress': 0, 'step': 'queued',
+                'message': f'Position in queue: {queue_pos + 1}', 'semester': None,
+                'data': None, 'error': None, 'regd_no': regd_no, 'user_id': current_user.id
+            }
+        _task_state[task_id]['queue_position'] = queue_pos + 1
 
-        try:
-            yield f"data: {json.dumps({'type':'step','message':'🔐 Logging in...'})}\n\n"
-            dashboard = login_step2(session, regd_no, password)
+    return jsonify({'task_id': task_id})
 
-            yield f"data: {json.dumps({'type':'step','message':'📋 Opening marks memo...'})}\n\n"
-            marks_page = click_marks_memo(session, dashboard)
 
-            exam_ids = get_exam_ids_for_student(regd_no)
+@app.route('/task_status/<task_id>')
+@login_required
+@limiter.limit("30 per minute")
+def task_status(task_id):
+    state = _task_state.get(task_id)
+    if not state:
+        return jsonify({'error': 'Task not found'}), 404
 
-            yield f"data: {json.dumps({'type':'step','message':f'📅 Found {len(exam_ids)} exam sessions'})}\n\n"
+    if state.get('user_id') != current_user.id and not current_user.is_admin:
+        return jsonify({'error': 'Forbidden'}), 403
 
-            # ================= OLD LOGIC =================
-            all_data = {sem: {"regular": None, "supplies": []} for sem in range(1, 7)}
+    resp = {k: state[k] for k in ('status', 'progress', 'step', 'message', 'semester', 'data', 'error')}
+    resp['queue_position'] = state.get('queue_position', 0)
+    return jsonify(resp)
 
-            # ---- PHASE 1: find semester 1 ----
-            sem1_found_idx = -1
 
-            for idx, exam_id in enumerate(exam_ids):
+@app.route('/cancel_task/<task_id>', methods=['POST'])
+@login_required
+@limiter.limit("10 per minute")
+def cancel_task(task_id):
+    state = _task_state.get(task_id)
+    if not state:
+        return jsonify({'error': 'Task not found'}), 404
+    if state.get('user_id') != current_user.id and not current_user.is_admin:
+        return jsonify({'error': 'Forbidden'}), 403
 
-                exam_name = EXAM_NAMES.get(exam_id, str(exam_id))
-
-                res = get_marks_pdf(session, marks_page, str(exam_id), "1")
-
-                if "pdf" not in res.headers.get("Content-Type", ""):
-                    continue
-
-                parsed = parse_pdf(res.content, exam_name, 1)
-
-                if parsed:
-                    all_data[1]["regular"] = {"exam": exam_name, "subjects": parsed}
-                    sem1_found_idx = idx
-
-                    sem_merged = _merge_sem(all_data[1]["regular"], all_data[1]["supplies"])
-                    yield f"data: {json.dumps({'type':'semester','semester':1,'data':sem_merged})}\n\n"
-                    yield f"data: {json.dumps({'type':'step','message':'✅ Semester 1 found'})}\n\n"
-                    break
-
-            if sem1_found_idx == -1:
-                yield f"data: {json.dumps({'type':'error','message':'Semester 1 not found'})}\n\n"
-                return
-
-            # ---- PHASE 2: smart scanning ----
-            remaining = exam_ids[sem1_found_idx:]
-            highest_found = 1
-
-            total = len(remaining) * 6
-            done = 0
-
-            for exam_id in remaining:
-
-                exam_name = EXAM_NAMES.get(exam_id, str(exam_id))
-                sems_to_check = range(1, min(highest_found + 2, 7))
-
-                for sem in sems_to_check:
-
-                    done += 1
-                    progress = int((done / total) * 100)
-
-                    yield f"data: {json.dumps({'type':'progress','progress':progress,'message':f'Scanning {exam_name} sem {sem}...'})}\n\n"
-
-                    time.sleep(3)
-                    res = get_marks_pdf(session, marks_page, str(exam_id), str(sem))
-
-                    if "pdf" not in res.headers.get("Content-Type", ""):
-                        marks_page = res
-                        continue
-
-                    parsed = parse_pdf(res.content, exam_name, sem)
-
-                    if not parsed:
-                        continue
-
-                    is_supply = len(parsed) < 5
-
-                    if not is_supply and all_data[sem]["regular"] is None:
-                        all_data[sem]["regular"] = {
-                            "exam": exam_name,
-                            "subjects": parsed
-                        }
-
-                        highest_found = max(highest_found, sem)
-
-                        sem_merged = _merge_sem(all_data[sem]["regular"], all_data[sem]["supplies"])
-                        yield f"data: {json.dumps({'type':'semester','semester':sem,'data':sem_merged})}\n\n"
-
-                    elif is_supply:
-                        all_data[sem]["supplies"].append({
-                            "exam": exam_name,
-                            "subjects": parsed
-                        })
-
-                        if all_data[sem]["regular"]:
-                            sem_merged = _merge_sem(all_data[sem]["regular"], all_data[sem]["supplies"])
-                            yield f"data: {json.dumps({'type':'semester','semester':sem,'data':sem_merged})}\n\n"
-
-            merged = {str(k): _merge_sem(v["regular"], v["supplies"]) if v["regular"] else None for k, v in all_data.items()}
-            yield f"data: {json.dumps({'type':'done','data':merged})}\n\n"
-
-        except Exception as e:
-            yield f"data: {json.dumps({'type':'error','message':str(e)})}\n\n"
-
-    return Response(generate(), mimetype="text/event-stream")
+    _task_cancel.add(task_id)
+    with _task_queue_lock:
+        _task_queue[:] = [t for t in _task_queue if t[2] != task_id]
+    if state['status'] in ('queued',):
+        state['status'] = 'cancelled'
+    return jsonify({'ok': True})
 
 
 # ===================== CREATE ADMIN =====================
