@@ -706,7 +706,7 @@ def generate_pdf():
         from reportlab.pdfbase import pdfmetrics
         from reportlab.pdfbase.ttfonts import TTFont
         from reportlab.platypus import (
-            SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+            SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
         )
         from reportlab.lib.styles import ParagraphStyle
         from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
@@ -716,13 +716,32 @@ def generate_pdf():
         data = json.loads(raw)
 
         try:
-            pdfmetrics.registerFont(TTFont('SegoeUI', r'C:\Windows\Fonts\segoeui.ttf'))
-            pdfmetrics.registerFont(TTFont('SegoeUIBold', r'C:\Windows\Fonts\segoeuib.ttf'))
-            FONT = 'SegoeUI'
-            FONT_B = 'SegoeUIBold'
+            pdfmetrics.registerFont(TTFont('Inter', r'C:\Windows\Fonts\segoeui.ttf'))
+            pdfmetrics.registerFont(TTFont('InterBold', r'C:\Windows\Fonts\segoeuib.ttf'))
+            pdfmetrics.registerFont(TTFont('InterSemibold', r'C:\Windows\Fonts\seguisb.ttf'))
+            F = 'Inter'
+            FB = 'InterBold'
+            FS = 'InterSemibold'
         except Exception:
-            FONT = 'Helvetica'
-            FONT_B = 'Helvetica-Bold'
+            F = 'Helvetica'
+            FB = 'Helvetica-Bold'
+            FS = 'Helvetica-Bold'
+
+        BG       = colors.HexColor("#0d0709")
+        CARD     = colors.HexColor("#1a1a2e")
+        CARD2    = colors.HexColor("#151528")
+        ACCENT   = colors.HexColor("#d4405e")
+        ACCENT2  = colors.HexColor("#96263e")
+        GOLD     = colors.HexColor("#ffd740")
+        GREEN    = colors.HexColor("#00e676")
+        RED      = colors.HexColor("#ff5252")
+        TXT      = colors.HexColor("#ffffff")
+        TXT2     = colors.HexColor("#c09898")
+        TXT3     = colors.HexColor("#6a4848")
+        BORDER   = colors.HexColor("#2a1a20")
+        ROW_ALT  = colors.HexColor("#110e14")
+        PASS_BG  = colors.HexColor("#0d2818")
+        FAIL_BG  = colors.HexColor("#2d0f0f")
 
         now = datetime.now()
         date_str = now.strftime("%d %b %Y")
@@ -747,161 +766,259 @@ def generate_pdf():
 
         buf = BytesIO()
         doc = SimpleDocTemplate(buf, pagesize=A4,
-                                leftMargin=18*mm, rightMargin=18*mm,
-                                topMargin=12*mm, bottomMargin=18*mm)
-        page_w = A4[0] - 36*mm
+                                leftMargin=16*mm, rightMargin=16*mm,
+                                topMargin=10*mm, bottomMargin=16*mm)
+        pw = A4[0] - 32*mm
 
-        def S(sz, color="#333333", align=TA_LEFT, leading=None, bold=False):
-            return ParagraphStyle("", fontName=FONT_B if bold else FONT, fontSize=sz,
-                                  textColor=colors.HexColor(color), alignment=align,
-                                  leading=leading or sz * 1.3)
+        def S(sz, clr=TXT, align=TA_LEFT, leading=None, bold=False, italic=False):
+            fn = FB if bold else (FS if italic else F)
+            return ParagraphStyle("", fontName=fn, fontSize=sz,
+                                  textColor=clr if isinstance(clr, colors.Color) else colors.HexColor(clr),
+                                  alignment=align, leading=leading or sz * 1.4)
+
+        def draw_bg(canvas, doc):
+            canvas.saveState()
+            canvas.setFillColor(BG)
+            canvas.rect(0, 0, A4[0], A4[1], fill=1, stroke=0)
+            canvas.setFont(F, 7)
+            canvas.setFillColor(TXT3)
+            canvas.drawString(16*mm, 7*mm, "SR & BGNR College Tracker")
+            canvas.drawRightString(A4[0] - 16*mm, 7*mm, f"Page {canvas.getPageNumber()}")
+            canvas.restoreState()
 
         elements = []
 
-        def add_header():
-            hdr = Table(
-                [[Paragraph(time_str, S(8, "#888888")),
-                  Paragraph("SR & BGNR College Tracker", S(8, "#888888", TA_RIGHT))]],
-                colWidths=[page_w * 0.5, page_w * 0.5]
-            )
-            hdr.setStyle(TableStyle([
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-            ]))
-            elements.append(hdr)
-            elements.append(Spacer(1, 2*mm))
-
-        add_header()
-
-        elements.append(Paragraph("SR & BGNR College \u2014 Academic Report",
-                                  S(16, "#d4405e", TA_CENTER, bold=True)))
-        elements.append(Spacer(1, 2*mm))
-
-        sub_line = f"Registration No: {regd_no} | Generated: {date_str}"
-        elements.append(Paragraph(sub_line, S(9, "#666666", TA_CENTER)))
-        elements.append(Spacer(1, 6*mm))
-
-        stats = [
-            [Paragraph(str(regd_no), S(14, "#d4405e", TA_CENTER, bold=True)),
-             Paragraph(str(total_subs), S(14, "#d4405e", TA_CENTER, bold=True)),
-             Paragraph(str(total_passed), S(14, "#d4405e", TA_CENTER, bold=True)),
-             Paragraph(str(total_arrears), S(14, "#d4405e", TA_CENTER, bold=True))],
-            [Paragraph("Registration No", S(7, "#888888", TA_CENTER)),
-             Paragraph("Total Subjects", S(7, "#888888", TA_CENTER)),
-             Paragraph("Passed", S(7, "#888888", TA_CENTER)),
-             Paragraph("Pending Arrears", S(7, "#888888", TA_CENTER))],
-        ]
-        stats_table = Table(stats, colWidths=[page_w * 0.25] * 4)
-        stats_table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f5f0f0")),
-            ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#e0d0d0")),
-            ("INNERGRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#e0d0d0")),
-            ("TOPPADDING", (0, 0), (-1, 0), 10),
-            ("BOTTOMPADDING", (0, 1), (-1, 1), 10),
+        hdr_data = [[
+            Paragraph(time_str, S(7.5, TXT3)),
+            Paragraph("SR & BGNR College Tracker", S(7.5, TXT3, TA_RIGHT)),
+        ]]
+        hdr = Table(hdr_data, colWidths=[pw * 0.5, pw * 0.5])
+        hdr.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+            ("TOPPADDING", (0, 0), (-1, -1), 0),
         ]))
-        elements.append(stats_table)
+        elements.append(hdr)
+        elements.append(Spacer(1, 4*mm))
+
+        elements.append(Paragraph("SR & BGNR College", S(18, ACCENT, TA_CENTER, bold=True)))
+        elements.append(Paragraph("Academic Report", S(13, TXT2, TA_CENTER)))
+        elements.append(Spacer(1, 3*mm))
+
+        elements.append(Paragraph(f"Registration No: {regd_no}", S(9, TXT2, TA_CENTER)))
+        elements.append(Paragraph(f"Generated: {date_str}", S(8, TXT3, TA_CENTER)))
         elements.append(Spacer(1, 6*mm))
 
-        GREEN = colors.HexColor("#2e7d32")
-        RED = colors.HexColor("#c62828")
-        GRAY = colors.HexColor("#888888")
+        stat_data = [
+            [Paragraph(str(regd_no), S(13, GOLD, TA_CENTER, bold=True)),
+             Paragraph(str(total_subs), S(13, ACCENT, TA_CENTER, bold=True)),
+             Paragraph(str(total_passed), S(13, GREEN, TA_CENTER, bold=True)),
+             Paragraph(str(total_arrears), S(13, RED, TA_CENTER, bold=True))],
+            [Paragraph("Registration No", S(6.5, TXT3, TA_CENTER)),
+             Paragraph("Total Subjects", S(6.5, TXT3, TA_CENTER)),
+             Paragraph("Passed", S(6.5, TXT3, TA_CENTER)),
+             Paragraph("Pending Arrears", S(6.5, TXT3, TA_CENTER))],
+        ]
+        stat_tbl = Table(stat_data, colWidths=[pw * 0.25] * 4, rowHeights=[28, 14])
+        stat_tbl.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), CARD),
+            ("BOX", (0, 0), (-1, -1), 0.6, BORDER),
+            ("INNERGRID", (0, 0), (-1, -1), 0.6, BORDER),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("TOPPADDING", (0, 0), (-1, 0), 8),
+            ("BOTTOMPADDING", (0, 1), (-1, 1), 6),
+        ]))
+        elements.append(stat_tbl)
+        elements.append(Spacer(1, 6*mm))
 
         for sem_num, sd in sem_data_list:
             if sd is None:
+                empty_data = [
+                    [Paragraph(f"Semester {sem_num}", S(10, TXT2, bold=True)),
+                     Paragraph("No Data Yet", S(9, TXT3, TA_RIGHT))]
+                ]
+                empty_tbl = Table(empty_data, colWidths=[pw * 0.5, pw * 0.5])
+                empty_tbl.setStyle(TableStyle([
+                    ("BACKGROUND", (0, 0), (-1, -1), CARD2),
+                    ("BOX", (0, 0), (-1, -1), 0.5, BORDER),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("TOPPADDING", (0, 0), (-1, -1), 8),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                    ("LEFTPADDING", (0, 0), (0, 0), 10),
+                ]))
+                elements.append(empty_tbl)
                 elements.append(Spacer(1, 3*mm))
-                elements.append(Paragraph(f"Semester {sem_num}",
-                                          S(11, "#333333", bold=True)))
-                elements.append(Paragraph("No Data Yet", S(9, "#999999")))
-                elements.append(Spacer(1, 4*mm))
                 continue
 
             subjects = sd.get("subjects", [])
             arrears = sum(1 for s in subjects if s.get("status") == "fail")
             exam_name = sd.get("exam", "")
-            sem_header_text = f"Semester {sem_num}"
-            if arrears > 0:
-                sem_header_text += f'    \u274c  {arrears} Arrear{"s" if arrears > 1 else ""}'
+            arrear_txt = f"  -  {arrears} Arrear{'s' if arrears != 1 else ''}" if arrears > 0 else ""
 
-            elements.append(Spacer(1, 3*mm))
-            elements.append(Paragraph(sem_header_text, S(11, "#333333", bold=True)))
+            sem_hdr_data = [[
+                Paragraph(f"Semester {sem_num}", S(11, TXT, bold=True)),
+                Paragraph(f"{exam_name}  |  {len(subjects)} subjects{arrear_txt}",
+                          S(8, TXT3, TA_RIGHT)),
+            ]]
+            sem_hdr_tbl = Table(sem_hdr_data, colWidths=[pw * 0.45, pw * 0.55])
+            sem_hdr_tbl.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, -1), CARD),
+                ("BOX", (0, 0), (-1, -1), 0.6, BORDER),
+                ("LINEBELOW", (0, 0), (-1, 0), 1.5, ACCENT),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("TOPPADDING", (0, 0), (-1, -1), 8),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                ("LEFTPADDING", (0, 0), (0, 0), 10),
+                ("RIGHTPADDING", (-1, -1), (-1, -1), 10),
+            ]))
+            elements.append(sem_hdr_tbl)
+            elements.append(Spacer(1, 1*mm))
 
-            exam_info = f"{exam_name} \u00b7 {len(subjects)} subjects"
-            elements.append(Paragraph(exam_info, S(8, "#999999")))
-            elements.append(Spacer(1, 2*mm))
+            tbl_data = [[
+                Paragraph("#", S(7, TXT3, TA_CENTER, bold=True)),
+                Paragraph("SUBJECT", S(7, TXT3, bold=True)),
+                Paragraph("GRADE", S(7, TXT3, TA_CENTER, bold=True)),
+                Paragraph("CREDITS", S(7, TXT3, TA_CENTER, bold=True)),
+                Paragraph("STATUS", S(7, TXT3, TA_CENTER, bold=True)),
+            ]]
 
-            tbl_data = [["#", "SUBJECT", "GRADE", "CREDITS", "STATUS"]]
             for i, s in enumerate(subjects, 1):
-                subj_name = s.get("subject", "")
+                subj = s.get("subject", "")
                 if s.get("supply_passed"):
-                    subj_name += " \u2605 via supply"
+                    subj += f"  [{s['supply_passed']}]"
                 grade = s.get("grade", "")
-                credits = s.get("credits", "0")
-                if s.get("status") == "pass":
-                    status_cell = Paragraph("\u2705", S(10, "#2e7d32", TA_CENTER))
+                creds = s.get("credits", "0")
+                is_pass = s.get("status") == "pass"
+
+                if is_pass:
+                    status_cell = Table(
+                        [[Paragraph("PASS", S(6.5, colors.HexColor("#00e676"), TA_CENTER, bold=True))]],
+                        colWidths=[22*mm], rowHeights=[12]
+                    )
+                    status_cell.setStyle(TableStyle([
+                        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#0a2e1a")),
+                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                        ("TOPPADDING", (0, 0), (-1, -1), 1),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
+                        ("ROUNDEDCORNERS", [3, 3, 3, 3]),
+                    ]))
                 else:
-                    status_cell = Paragraph("\u274c", S(10, "#c62828", TA_CENTER))
+                    status_cell = Table(
+                        [[Paragraph("FAIL", S(6.5, colors.HexColor("#ff5252"), TA_CENTER, bold=True))]],
+                        colWidths=[22*mm], rowHeights=[12]
+                    )
+                    status_cell.setStyle(TableStyle([
+                        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#2d0f0f")),
+                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                        ("TOPPADDING", (0, 0), (-1, -1), 1),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
+                        ("ROUNDEDCORNERS", [3, 3, 3, 3]),
+                    ]))
+
+                grade_clr = GREEN if is_pass else RED
                 tbl_data.append([
-                    Paragraph(str(i), S(8, "#333333", TA_CENTER)),
-                    Paragraph(subj_name, S(8, "#333333")),
-                    Paragraph(grade, S(8, "#333333", TA_CENTER)),
-                    Paragraph(str(credits), S(8, "#333333", TA_CENTER)),
+                    Paragraph(str(i), S(8, TXT3, TA_CENTER)),
+                    Paragraph(subj, S(8, TXT2)),
+                    Paragraph(grade, S(8, grade_clr, TA_CENTER, bold=True)),
+                    Paragraph(str(creds), S(8, TXT3, TA_CENTER)),
                     status_cell,
                 ])
 
-            col_w = [10*mm, page_w - 70*mm, 20*mm, 20*mm, 20*mm]
+            col_w = [10*mm, pw - 72*mm, 18*mm, 18*mm, 26*mm]
             tbl = Table(tbl_data, colWidths=col_w, repeatRows=1)
             tbl.setStyle(TableStyle([
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#d4405e")),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                ("FONTNAME", (0, 0), (-1, 0), FONT_B),
-                ("FONTSIZE", (0, 0), (-1, 0), 8),
-                ("BOTTOMPADDING", (0, 0), (-1, 0), 5),
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1e1028")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), TXT3),
+                ("FONTNAME", (0, 0), (-1, 0), FB),
+                ("LINEBELOW", (0, 0), (-1, 0), 1, ACCENT),
                 ("TOPPADDING", (0, 0), (-1, 0), 5),
-                ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#dddddd")),
+                ("BOTTOMPADDING", (0, 0), (-1, 0), 5),
+                ("GRID", (0, 0), (-1, -1), 0.3, BORDER),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#fafafa")]),
                 ("TOPPADDING", (0, 1), (-1, -1), 4),
                 ("BOTTOMPADDING", (0, 1), (-1, -1), 4),
             ]))
+
+            for row_idx in range(1, len(tbl_data)):
+                bg = ROW_ALT if row_idx % 2 == 0 else CARD2
+                tbl.setStyle(TableStyle([
+                    ("BACKGROUND", (0, row_idx), (-1, row_idx), bg),
+                ]))
+
             elements.append(tbl)
 
             supplies = sd.get("supplies", [])
             if supplies:
-                elements.append(Spacer(1, 4*mm))
-                elements.append(Paragraph("\U0001f504 Supply Attempts", S(9, "#555555", bold=True)))
+                elements.append(Spacer(1, 3*mm))
+                supply_hdr = Table(
+                    [[Paragraph("Supply Attempts", S(8, GOLD, bold=True))]],
+                    colWidths=[pw]
+                )
+                supply_hdr.setStyle(TableStyle([
+                    ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#1e1a10")),
+                    ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#3a3010")),
+                    ("TOPPADDING", (0, 0), (-1, -1), 5),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ]))
+                elements.append(supply_hdr)
+
                 for sp in supplies:
                     sp_exam = sp.get("exam", "")
-                    elements.append(Spacer(1, 1.5*mm))
-                    elements.append(Paragraph(sp_exam, S(8, "#333333", bold=True)))
+                    elements.append(Spacer(1, 1*mm))
+                    elements.append(Paragraph(sp_exam, S(7.5, TXT2, bold=True)))
+
+                    sp_rows = [[
+                        Paragraph("SUBJECT", S(6.5, TXT3, bold=True)),
+                        Paragraph("GRADE", S(6.5, TXT3, TA_CENTER, bold=True)),
+                        Paragraph("RESULT", S(6.5, TXT3, TA_CENTER, bold=True)),
+                    ]]
                     for s in sp.get("subjects", []):
                         sname = s.get("subject", "")
                         sgrade = s.get("grade", "")
-                        if s.get("status") == "pass":
-                            sstatus = Paragraph(f"\u2705 Cleared", S(8, "#2e7d32"))
+                        spass = s.get("status") == "pass"
+                        if spass:
+                            res_cell = Table(
+                                [[Paragraph("CLEARED", S(6, GREEN, TA_CENTER, bold=True))]],
+                                colWidths=[24*mm], rowHeights=[11]
+                            )
+                            res_cell.setStyle(TableStyle([
+                                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#0a2e1a")),
+                                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                                ("TOPPADDING", (0, 0), (-1, -1), 1),
+                                ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
+                            ]))
                         else:
-                            sstatus = Paragraph(f"\u274c Failed", S(8, "#c62828"))
-                        row_tbl = Table(
-                            [[Paragraph(sname, S(8, "#555555")),
-                              Paragraph(sgrade, S(8, "#555555", TA_CENTER)),
-                              sstatus]],
-                            colWidths=[page_w - 60*mm, 20*mm, 40*mm]
-                        )
-                        row_tbl.setStyle(TableStyle([
-                            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                            ("TOPPADDING", (0, 0), (-1, -1), 2),
-                            ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-                        ]))
-                        elements.append(row_tbl)
+                            res_cell = Table(
+                                [[Paragraph("FAILED", S(6, RED, TA_CENTER, bold=True))]],
+                                colWidths=[24*mm], rowHeights=[11]
+                            )
+                            res_cell.setStyle(TableStyle([
+                                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#2d0f0f")),
+                                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                                ("TOPPADDING", (0, 0), (-1, -1), 1),
+                                ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
+                            ]))
+                        sp_rows.append([
+                            Paragraph(sname, S(7, TXT2)),
+                            Paragraph(sgrade, S(7, GREEN if spass else RED, TA_CENTER, bold=True)),
+                            res_cell,
+                        ])
 
-        def footer_page(canvas, doc):
-            canvas.saveState()
-            canvas.setFont(FONT, 7)
-            canvas.setFillColor(colors.HexColor("#999999"))
-            canvas.drawString(18*mm, 8*mm, "127.0.0.1:5000")
-            canvas.drawRightString(A4[0] - 18*mm, 8*mm, f"{canvas.getPageNumber()}/{len(data)}")
-            canvas.restoreState()
+                    sp_tbl = Table(sp_rows, colWidths=[pw - 54*mm, 14*mm, 40*mm])
+                    sp_tbl.setStyle(TableStyle([
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#151020")),
+                        ("LINEBELOW", (0, 0), (-1, 0), 0.5, BORDER),
+                        ("GRID", (0, 0), (-1, -1), 0.3, BORDER),
+                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                        ("TOPPADDING", (0, 0), (-1, -1), 3),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                    ]))
+                    elements.append(sp_tbl)
 
-        doc.build(elements, onFirstPage=footer_page, onLaterPages=footer_page)
+            elements.append(Spacer(1, 4*mm))
+
+        doc.build(elements, onFirstPage=draw_bg, onLaterPages=draw_bg)
         buf.seek(0)
 
         filename = f"SR-BGNR-{regd_no}.pdf"
