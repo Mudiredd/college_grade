@@ -692,6 +692,100 @@ def _merge_sem(reg, supplies):
     }
 
 # =========================================================
+@app.route('/generate-pdf', methods=['POST'])
+@login_required
+def generate_pdf():
+    try:
+        import json
+        from io import BytesIO
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.units import mm, cm
+        from reportlab.lib import colors
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.enums import TA_CENTER, TA_LEFT
+
+        raw = request.form.get("data", "{}")
+        regd_no = request.form.get("regd_no", "").strip()
+        data = json.loads(raw)
+
+        buf = BytesIO()
+        doc = SimpleDocTemplate(buf, pagesize=A4,
+                                leftMargin=15*mm, rightMargin=15*mm,
+                                topMargin=15*mm, bottomMargin=15*mm)
+        styles = getSampleStyleSheet()
+        title_style = ParagraphStyle("Title2", parent=styles["Heading1"],
+                                     fontSize=16, spaceAfter=6, alignment=TA_CENTER,
+                                     textColor=colors.HexColor("#d4405e"))
+        sem_style = ParagraphStyle("Sem", parent=styles["Heading2"],
+                                   fontSize=13, spaceAfter=4, spaceBefore=12,
+                                   textColor=colors.HexColor("#333"))
+        cell_style = ParagraphStyle("Cell", fontSize=9, leading=12, alignment=TA_LEFT)
+        center_style = ParagraphStyle("Center", parent=cell_style, alignment=TA_CENTER)
+
+        elements = []
+        elements.append(Paragraph(f"SR & BGNR College Tracker", title_style))
+        elements.append(Paragraph(f"Registration No: {regd_no}", ParagraphStyle(
+            "Sub", parent=styles["Normal"], fontSize=10, alignment=TA_CENTER,
+            textColor=colors.HexColor("#666"), spaceAfter=8)))
+        elements.append(Spacer(1, 4*mm))
+
+        sorted_sems = sorted((int(k), v) for k, v in data.items() if v)
+        for sem_num, sem_data in sorted_sems:
+            elements.append(Paragraph(f"Semester {sem_num} — {sem_data.get('exam', 'N/A')}", sem_style))
+            subjects = sem_data.get("subjects", [])
+            if not subjects:
+                elements.append(Paragraph("No data available", styles["Normal"]))
+                continue
+
+            header = ["#", "Subject", "Marks", "Status"]
+            rows = [header]
+            for i, s in enumerate(subjects, 1):
+                status = s.get("status", "")
+                marks = s.get("marks", "")
+                if status == "pass":
+                    status_text = "PASS"
+                elif s.get("supply_passed"):
+                    status_text = f"PASS (Supply)"
+                else:
+                    status_text = "FAIL"
+                rows.append([
+                    Paragraph(str(i), center_style),
+                    Paragraph(s.get("subject", ""), cell_style),
+                    Paragraph(str(marks), center_style),
+                    Paragraph(status_text, center_style),
+                ])
+
+            col_w = [12*mm, 80*mm, 25*mm, 35*mm]
+            table = Table(rows, colWidths=col_w, repeatRows=1)
+            table.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#d4405e")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTSIZE", (0, 0), (-1, 0), 10),
+                ("BOTTOMPADDING", (0, 0), (-1, 0), 6),
+                ("TOPPADDING", (0, 0), (-1, 0), 6),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#ddd")),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f9f9f9")]),
+            ]))
+            elements.append(table)
+            elements.append(Spacer(1, 3*mm))
+
+        doc.build(elements)
+        buf.seek(0)
+
+        filename = f"SR-BGNR-{regd_no}.pdf"
+        return Response(
+            buf.getvalue(),
+            mimetype="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        )
+    except Exception as e:
+        logger.exception("generate-pdf error")
+        return jsonify({"error": str(e)}), 500
+
+
+# =========================================================
 @app.route('/get_results', methods=['POST'])
 @login_required
 @limiter.limit("10 per minute")
