@@ -28,22 +28,42 @@ def scrape_exam_options(session, marks_page_res):
     return exam_names
 
 def get_exam_ids_for_student(regd_no, exam_names):
-    try:
+    import re
+    joining_year = 15
+    if len(regd_no) > 4 and regd_no[2:4].isdigit():
         joining_year = int(regd_no[2:4])
-    except:
-        joining_year = 15  # fallback to earliest
 
     relevant_ids = []
     for exam_id, exam_name in exam_names.items():
-        year_str = exam_name.split('-')[-1]
-        try:
-            year = int(year_str)
-            # Include from one year before joining (for NOV before first sem)
-            if year >= joining_year - 1:
-                relevant_ids.append(exam_id)
-        except:
-            pass
+        match = re.search(r'(\d{4})', exam_name) or re.search(r'(\d{2})', exam_name)
+        if not match:
+            continue
+        year = int(match.group(1))
+        if year > 100:
+            year = year % 100  # 2024 → 24 for 2-digit comparison
+        if year >= joining_year:
+            relevant_ids.append(exam_id)
     return sorted(relevant_ids)
+
+_MONTH_MAP = {
+    'jan':1,'january':1,'feb':2,'february':2,'mar':3,'march':3,
+    'apr':4,'april':4,'may':5,'jun':6,'june':6,'jul':7,'july':7,
+    'aug':8,'august':8,'sep':9,'september':9,'oct':10,'october':10,
+    'nov':11,'november':11,'dec':12,'december':12,
+}
+
+def parse_exam_date(exam_name):
+    import re
+    s = exam_name.lower().replace('-', ' ')
+    for abbr, m in _MONTH_MAP.items():
+        if abbr in s:
+            ym = re.search(r'(\d{2,4})', s)
+            if ym:
+                y = int(ym.group(1))
+                if y < 100: y += 2000
+                from datetime import date
+                return date(y, m, 1)
+    return None
 
 def _val(soup, name):
     el = soup.find("input", {"name": name})
@@ -92,6 +112,17 @@ def get_marks_pdf(session, marks_page_res, exam_id, semester):
         "ctl00$ContentPlaceHolder1$ddlExam": exam_id,
         "ctl00$ContentPlaceHolder1$ddlSemester": semester,
         "ctl00$ContentPlaceHolder1$hfStudId": _val(soup, "ctl00$ContentPlaceHolder1$hfStudId"),
+        "ctl00$ContentPlaceHolder1$cmbSubmit": "Get Data"
+    }
+    return session.post(MARKS_URL, data=payload, verify=False, timeout=TIMEOUT)
+
+def get_marks_pdf_fresh(session, marks_page_url, exam_id, semester, hfStudId):
+    tokens = get_viewstate(session, marks_page_url)
+    payload = {
+        **tokens,
+        "ctl00$ContentPlaceHolder1$ddlExam": exam_id,
+        "ctl00$ContentPlaceHolder1$ddlSemester": semester,
+        "ctl00$ContentPlaceHolder1$hfStudId": hfStudId,
         "ctl00$ContentPlaceHolder1$cmbSubmit": "Get Data"
     }
     return session.post(MARKS_URL, data=payload, verify=False, timeout=TIMEOUT)

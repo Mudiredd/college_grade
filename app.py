@@ -4,9 +4,9 @@ import time
 import json
 import uuid
 import threading
-from datetime import datetime
+from datetime import datetime, date
 from io import BytesIO
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 from flask import (
@@ -32,12 +32,14 @@ from scraper import (
     login_step2,
     click_marks_memo,
     get_marks_pdf,
+    get_marks_pdf_fresh,
     parse_pdf,
     get_exam_ids_for_student,
-    scrape_exam_options
+    scrape_exam_options,
+    parse_exam_date,
 )
 
-_CACHE_TTL = 600
+_CACHE_TTL = 300
 _result_cache = {}
 
 # ===================== POLLING QUEUE =====================
@@ -143,10 +145,20 @@ def _update_task_state(task_id, **kwargs):
             _task_state[task_id].update(kwargs)
 
 
+def _delete_search_history(user_id, regd_no):
+    try:
+        with app.app_context():
+            SearchHistory.query.filter_by(user_id=user_id, regd_no=regd_no).delete()
+            db.session.commit()
+    except Exception:
+        pass
+
+
 def _run_scrape(task_id, regd_no, password, user_id, plan):
     logger.info(f"Task {task_id}: scraping {regd_no} (plan={plan})")
     try:
         if task_id in _task_cancel:
+            _delete_search_history(user_id, regd_no)
             _update_task_state(task_id, status='cancelled', message='Cancelled')
             _task_cancel.discard(task_id)
             return
@@ -180,6 +192,134 @@ def _run_scrape(task_id, regd_no, password, user_id, plan):
         exam_names = scrape_exam_options(session, marks_page)
 
         exam_ids = get_exam_ids_for_student(regd_no, exam_names)
+        exam_date_cache = {eid: parse_exam_date(n) for eid, n in exam_names.items()}
+
+        # ── Pattern-driven scanning ──
+        from models import SemesterPattern
+        import re
+        joining_year = None
+        if len(regd_no) > 4 and regd_no[2:4].isdigit():
+            joining_year = int(regd_no[2:4])
+        else:
+            m = re.search(r'(\d{2})', regd_no)
+            joining_year = int(m.group(1)) if m else None
+        patterns = []
+        if joining_year:
+            with app.app_context():
+                patterns = SemesterPattern.query.filter_by(joining_year=joining_year).all()
+
+        logger.info(f"Task {task_id}: joining_year={joining_year}, patterns={len(patterns)}, regd_no={regd_no}, marks_page.url={marks_page.url}")
+
+        from bs4 import BeautifulSoup
+        marks_page_text = marks_page.text
+        marks_soup = BeautifulSoup(marks_page_text, "html.parser")
+        hf_stud_id_el = marks_soup.find("input", {"name": "ctl00$ContentPlaceHolder1$hfStudId"})
+        hf_stud_id = hf_stud_id_el["value"] if hf_stud_id_el is not None else ""
+        if not hf_stud_id:
+            logger.warning(f"Task {task_id}: hfStudId not found in marks_page, trying fallback")
+            from scraper import _val
+            try:
+                hf_stud_id = _val(marks_soup, "ctl00$ContentPlaceHolder1$hfStudId")
+            except Exception:
+                hf_stud_id = ""
+
+        if patterns:
+            logger.info(f"Task {task_id}: patterns={len(patterns)}, joining_year={joining_year}")
+            _update_task_state(task_id, step='scanning', message=f'Scanning {len(patterns)} entries...', progress=5)
+            all_data = {sem: {"regular": None, "supplies": []} for sem in range(1, 9)}
+
+            if task_id in _task_cancel:
+                _delete_search_history(user_id, regd_no)
+                _update_task_state(task_id, status='cancelled', message='Cancelled')
+                _task_cancel.discard(task_id)
+                return
+
+            # Pass 1: Regular patterns only — parallel with fresh VIEWSTATE per thread
+            regulars = [p for p in patterns if not p.is_supply]
+            regular_tasks = []
+            for p in regulars:
+                match = next((eid for eid, n in exam_names.items() if n.upper() == p.exam_name.upper()), None)
+                if match is not None:
+                    regular_tasks.append((p, match))
+
+            done = 0
+            total_reg = len(regular_tasks) or 1
+            with ThreadPoolExecutor(max_workers=5) as pool:
+                fut_to_p = {pool.submit(get_marks_pdf_fresh, session, marks_page.url, str(m), str(p.semester), hf_stud_id): p for p, m in regular_tasks}
+                for fut in as_completed(fut_to_p):
+                    if task_id in _task_cancel:
+                        _delete_search_history(user_id, regd_no)
+                        _update_task_state(task_id, status='cancelled', message='Cancelled')
+                        _task_cancel.discard(task_id)
+                        return
+                    p = fut_to_p[fut]
+                    done += 1
+                    pct = min(5 + int(done / total_reg * 80), 85)
+                    _update_task_state(task_id, progress=pct, message=f'{p.exam_name} sem {p.semester}...')
+                    try:
+                        res = fut.result()
+                        if "pdf" in res.headers.get("Content-Type", ""):
+                            parsed = parse_pdf(res.content, p.exam_name, p.semester)
+                            if parsed:
+                                all_data[p.semester]["regular"] = {"exam": p.exam_name, "subjects": parsed}
+                                sem_merged = _merge_sem(all_data[p.semester]["regular"], all_data[p.semester]["supplies"])
+                                _update_task_state(task_id, semester={'semester': p.semester, 'data': sem_merged})
+                    except Exception as e:
+                        logger.warning(f"Task {task_id}: regular fetch failed for {p.exam_name} sem {p.semester}: {e}")
+
+            # Check which semesters have failures
+            failed_sems = set()
+            for sem, d in all_data.items():
+                if d["regular"] and any(s["status"] == "fail" for s in d["regular"]["subjects"]):
+                    failed_sems.add(sem)
+
+            if task_id in _task_cancel:
+                _delete_search_history(user_id, regd_no)
+                _update_task_state(task_id, status='cancelled', message='Cancelled')
+                _task_cancel.discard(task_id)
+                return
+
+            # Pass 2: Supply patterns only for semesters with failures — parallel
+            supplies = [p for p in patterns if p.is_supply and p.semester in failed_sems]
+            supply_tasks = []
+            for p in supplies:
+                match = next((eid for eid, n in exam_names.items() if n.upper() == p.exam_name.upper()), None)
+                if match is not None:
+                    supply_tasks.append((p, match))
+
+            done = 0
+            total_sup = len(supply_tasks) or 1
+            with ThreadPoolExecutor(max_workers=5) as pool:
+                fut_to_p = {pool.submit(get_marks_pdf_fresh, session, marks_page.url, str(m), str(p.semester), hf_stud_id): p for p, m in supply_tasks}
+                for fut in as_completed(fut_to_p):
+                    if task_id in _task_cancel:
+                        _delete_search_history(user_id, regd_no)
+                        _update_task_state(task_id, status='cancelled', message='Cancelled')
+                        _task_cancel.discard(task_id)
+                        return
+                    p = fut_to_p[fut]
+                    done += 1
+                    pct = min(85 + int(done / total_sup * 10), 90)
+                    _update_task_state(task_id, progress=pct, message=f'{p.exam_name} supply sem {p.semester}...')
+                    try:
+                        res = fut.result()
+                        if "pdf" in res.headers.get("Content-Type", ""):
+                            parsed = parse_pdf(res.content, p.exam_name, p.semester)
+                            if parsed:
+                                all_data[p.semester]["supplies"].append({"exam": p.exam_name, "subjects": parsed})
+                                if all_data[p.semester]["regular"]:
+                                    sem_merged = _merge_sem(all_data[p.semester]["regular"], all_data[p.semester]["supplies"])
+                                    _update_task_state(task_id, semester={'semester': p.semester, 'data': sem_merged})
+                    except Exception as e:
+                        logger.warning(f"Task {task_id}: supply fetch failed for {p.exam_name} sem {p.semester}: {e}")
+
+            merged = {str(k): _merge_sem(v["regular"], v["supplies"]) if v["regular"] else None for k, v in all_data.items()}
+            _result_cache[regd_no] = (time.time(), merged)
+            _update_task_state(task_id, status='done', data=merged, progress=100)
+            logger.info(f"Task {task_id}: pattern-done for {regd_no}")
+            return
+
+        # ── Fallback: auto-discovery scanning ──
         _update_task_state(task_id, step='scanning', message=f'Scanning {len(exam_ids)} exam sessions...')
 
         all_data = {sem: {"regular": None, "supplies": []} for sem in range(1, 9)}
@@ -187,16 +327,21 @@ def _run_scrape(task_id, regd_no, password, user_id, plan):
 
         for idx, exam_id in enumerate(exam_ids):
             if task_id in _task_cancel:
+                _delete_search_history(user_id, regd_no)
                 _update_task_state(task_id, status='cancelled', message='Cancelled')
                 _task_cancel.discard(task_id)
                 return
             exam_name = exam_names.get(exam_id, str(exam_id))
             _update_task_state(task_id, step='scanning', message=f'Scanning sem 1 in {exam_name}...')
             res = get_marks_pdf(session, marks_page, str(exam_id), "1")
-            if "pdf" not in res.headers.get("Content-Type", ""):
+            content_type = res.headers.get("Content-Type", "")
+            logger.info(f"Task {task_id}: sem1 scan exam_id={exam_id} exam={exam_name} content_type={content_type}")
+            if "pdf" not in content_type:
+                marks_page = res
                 continue
             parsed = parse_pdf(res.content, exam_name, 1)
             if parsed:
+                logger.info(f"Task {task_id}: sem 1 found in {exam_name}")
                 all_data[1]["regular"] = {"exam": exam_name, "subjects": parsed}
                 sem1_found_idx = idx
                 sem_merged = _merge_sem(all_data[1]["regular"], all_data[1]["supplies"])
@@ -204,6 +349,8 @@ def _run_scrape(task_id, regd_no, password, user_id, plan):
                 break
 
         if sem1_found_idx == -1:
+            _delete_search_history(user_id, regd_no)
+            logger.warning(f"Task {task_id}: semester 1 not found after checking {len(exam_ids)} exams")
             _update_task_state(task_id, status='error', error='Semester 1 not found')
             return
 
@@ -214,44 +361,101 @@ def _run_scrape(task_id, regd_no, password, user_id, plan):
             _update_task_state(task_id, status='done', data=merged, progress=100)
             return
 
-        remaining = exam_ids[sem1_found_idx:]
+        sem1_date = exam_date_cache.get(exam_ids[sem1_found_idx])
+        if sem1_date:
+            remaining = [eid for eid in exam_ids
+                if (d := exam_date_cache.get(eid)) is not None and d >= sem1_date]
+        else:
+            remaining = exam_ids[sem1_found_idx:]
+        if sem1_date:
+            remaining.sort(key=lambda eid: exam_date_cache.get(eid) or date.max)
+        x_date = sem1_date
         highest_found = 1
-        total = len(remaining) * 8
-        done = 0
+        total_remaining = len(remaining)
 
-        for exam_id in remaining:
+        for exam_idx, exam_id in enumerate(remaining):
             if task_id in _task_cancel:
+                _delete_search_history(user_id, regd_no)
                 _update_task_state(task_id, status='cancelled', message='Cancelled')
                 _task_cancel.discard(task_id)
                 return
             exam_name = exam_names.get(exam_id, str(exam_id))
+            curr_date = exam_date_cache.get(exam_id)
+            if x_date and curr_date and curr_date != x_date:
+                gap = (curr_date.year - x_date.year) * 12 + (curr_date.month - x_date.month)
+                if gap < 4:
+                    continue
+
             start = 1 if highest_found % 2 == 1 else 2
             sems_to_check = list(range(start, highest_found + 1, 2))
             if highest_found + 1 <= 8:
                 sems_to_check.append(highest_found + 1)
-            for sem in sems_to_check:
-                done += 1
-                progress = int((done / total) * 100)
-                _update_task_state(task_id, progress=progress, message=f'Scanning {exam_name} sem {sem}...')
-                time.sleep(3)
-                res = get_marks_pdf(session, marks_page, str(exam_id), str(sem))
-                if "pdf" not in res.headers.get("Content-Type", ""):
-                    marks_page = res
-                    continue
-                parsed = parse_pdf(res.content, exam_name, sem)
-                if not parsed:
-                    continue
-                is_supply = len(parsed) < 5
-                if not is_supply and all_data[sem]["regular"] is None:
-                    all_data[sem]["regular"] = {"exam": exam_name, "subjects": parsed}
-                    highest_found = max(highest_found, sem)
-                    sem_merged = _merge_sem(all_data[sem]["regular"], all_data[sem]["supplies"])
-                    _update_task_state(task_id, semester={'semester': sem, 'data': sem_merged})
-                elif is_supply:
-                    all_data[sem]["supplies"].append({"exam": exam_name, "subjects": parsed})
-                    if all_data[sem]["regular"]:
-                        sem_merged = _merge_sem(all_data[sem]["regular"], all_data[sem]["supplies"])
-                        _update_task_state(task_id, semester={'semester': sem, 'data': sem_merged})
+            sems_to_check = [s for s in sems_to_check if all_data[s]["regular"] is None]
+
+            if not sems_to_check:
+                if curr_date:
+                    x_date = curr_date
+                continue
+
+            _update_task_state(task_id, message=f'Scanning {exam_name}...')
+
+            found_new_regular = False
+            with ThreadPoolExecutor(max_workers=5) as pool:
+                fut_to_sem = {pool.submit(get_marks_pdf_fresh, session, marks_page.url, str(exam_id), str(sem), hf_stud_id): sem for sem in sems_to_check}
+                for fut in as_completed(fut_to_sem):
+                    sem = fut_to_sem[fut]
+                    try:
+                        res = fut.result()
+                        if "pdf" not in res.headers.get("Content-Type", ""):
+                            continue
+                        parsed = parse_pdf(res.content, exam_name, sem)
+                        if not parsed:
+                            continue
+                        is_supply = len(parsed) < 5
+                        if not is_supply:
+                            all_data[sem]["regular"] = {"exam": exam_name, "subjects": parsed}
+                            highest_found = max(highest_found, sem)
+                            found_new_regular = True
+                            sem_merged = _merge_sem(all_data[sem]["regular"], all_data[sem]["supplies"])
+                            _update_task_state(task_id, semester={'semester': sem, 'data': sem_merged})
+                        else:
+                            all_data[sem]["supplies"].append({"exam": exam_name, "subjects": parsed})
+                            if all_data[sem]["regular"]:
+                                sem_merged = _merge_sem(all_data[sem]["regular"], all_data[sem]["supplies"])
+                                _update_task_state(task_id, semester={'semester': sem, 'data': sem_merged})
+                    except Exception as e:
+                        logger.warning(f"Task {task_id}: auto-detect failed for {exam_name} sem {sem}: {e}")
+
+            if found_new_regular:
+                supply_sems = []
+                for ss in range(1, highest_found):
+                    if ss in sems_to_check:
+                        continue
+                    if all_data[ss]["regular"] is None:
+                        continue
+                    supply_sems.append(ss)
+
+                if supply_sems:
+                    with ThreadPoolExecutor(max_workers=5) as pool:
+                        fut_to_ss = {pool.submit(get_marks_pdf_fresh, session, marks_page.url, str(exam_id), str(ss), hf_stud_id): ss for ss in supply_sems}
+                        for fut in as_completed(fut_to_ss):
+                            ss = fut_to_ss[fut]
+                            try:
+                                res = fut.result()
+                                if "pdf" in res.headers.get("Content-Type", ""):
+                                    parsed = parse_pdf(res.content, exam_name, ss)
+                                    if parsed and len(parsed) < 5:
+                                        all_data[ss]["supplies"].append({"exam": exam_name, "subjects": parsed})
+                                        sem_merged = _merge_sem(all_data[ss]["regular"], all_data[ss]["supplies"])
+                                        _update_task_state(task_id, semester={'semester': ss, 'data': sem_merged})
+                            except Exception as e:
+                                logger.warning(f"Task {task_id}: auto-detect supply failed for {exam_name} sem {ss}: {e}")
+
+            if curr_date:
+                x_date = curr_date
+
+            pct = min(85 + int((exam_idx + 1) / total_remaining * 10), 90)
+            _update_task_state(task_id, progress=pct)
 
         merged = {str(k): _merge_sem(v["regular"], v["supplies"]) if v["regular"] else None for k, v in all_data.items()}
         _result_cache[regd_no] = (time.time(), merged)
@@ -261,16 +465,10 @@ def _run_scrape(task_id, regd_no, password, user_id, plan):
         _update_task_state(task_id, status='done', data=merged, progress=100)
         logger.info(f"Task {task_id}: done for {regd_no}")
 
-        # save search history only on success
-        with app.app_context():
-            from models import SearchHistory
-            hist = SearchHistory(user_id=user_id, regd_no=regd_no)
-            db.session.add(hist)
-            db.session.commit()
-
     except Exception as e:
-        logger.error(f"Task {task_id}: error - {e}")
-        _update_task_state(task_id, status='error', error='Scraping failed — please try again')
+        _delete_search_history(user_id, regd_no)
+        logger.exception(f"Task {task_id}: error")
+        _update_task_state(task_id, status='error', error=f'Scraping failed: {e}')
 
 
 # start dispatcher
@@ -498,16 +696,23 @@ def _merge_sem(reg, supplies):
 @login_required
 @limiter.limit("10 per minute")
 def get_results():
-    ok, msg = check_search_limit(current_user)
-    if not ok:
-        return jsonify({'error': msg}), 429
-
     data = request.json
     regd_no = data.get("regd_no", "").strip()
     password = data.get("password", "0").strip()
 
     if not regd_no:
         return jsonify({'error': 'Registration number is required'}), 400
+
+    # Reserve search slot immediately (prevents race condition)
+    hist = SearchHistory(user_id=current_user.id, regd_no=regd_no)
+    db.session.add(hist)
+    db.session.commit()
+
+    ok, msg = check_search_limit(current_user)
+    if not ok:
+        SearchHistory.query.filter_by(id=hist.id).delete()
+        db.session.commit()
+        return jsonify({'error': msg}), 429
 
     priority = get_plan_priority(current_user)
     task_id = _next_task_id()
