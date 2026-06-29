@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
   <title>Subscribe — SR & BGNR College Tracker</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     body { font-family:'Inter','Segoe UI',sans-serif; background:#0d0709; color:#fff; min-height:100vh; }
@@ -399,9 +400,7 @@
 
       <div class="scan-section">
         <h3>📷 Scan & Pay</h3>
-        <div class="qr-wrap">
-          <img src="{{ url_for('static', filename='qr.jpeg') }}" alt="QR Code" class="qr-img" />
-        </div>
+        <div class="qr-wrap" id="qrcode"></div>
         <p class="scan-hint">Scan this QR with any UPI app to pay instantly</p>
       </div>
 
@@ -480,6 +479,17 @@
   let currentStep = 1;
   let selectedPlan = 'yearly';
 
+  // ── Generate QR ──
+  function generateQR() {
+    const pa = '{{ upi_id }}';
+    const am = PRICES[selectedPlan];
+    const tn = encodeURIComponent(selectedPlan.charAt(0).toUpperCase() + selectedPlan.slice(1) + ' Subscription');
+    const upiLink = 'upi://pay?pa=' + encodeURIComponent(pa) + '&pn=College%20Tracker&am=' + am + '&cu=INR&tn=' + tn;
+    const el = document.getElementById('qrcode');
+    el.innerHTML = '';
+    new QRCode(el, { text: upiLink, width: 160, height: 160 });
+  }
+
   // ── Plan Selection ──
   function selectPlan(plan) {
     selectedPlan = plan;
@@ -495,6 +505,7 @@
     document.getElementById('stickyBar').classList.add('visible');
     document.getElementById('stickyBtn').textContent = 'Continue';
     document.getElementById('stickyBtn').disabled = false;
+    generateQR();
   }
 
   // ── Step Navigation ──
@@ -528,9 +539,10 @@
         document.getElementById('stickyBtn').disabled = false;
       }
     }
-    // update amounts
+    // update amounts & QR
     document.getElementById('payAmount').textContent = '₹' + PRICES[selectedPlan];
     document.getElementById('payAmountStep').textContent = '₹' + PRICES[selectedPlan];
+    if (step === 2) generateQR();
     // scroll to top
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
