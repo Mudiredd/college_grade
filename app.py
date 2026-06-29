@@ -703,16 +703,13 @@ def get_results():
     if not regd_no:
         return jsonify({'error': 'Registration number is required'}), 400
 
-    # Reserve search slot immediately (prevents race condition)
+    ok, msg = check_search_limit(current_user)
+    if not ok:
+        return jsonify({'error': msg}), 429
+
     hist = SearchHistory(user_id=current_user.id, regd_no=regd_no)
     db.session.add(hist)
     db.session.commit()
-
-    ok, msg = check_search_limit(current_user)
-    if not ok:
-        SearchHistory.query.filter_by(id=hist.id).delete()
-        db.session.commit()
-        return jsonify({'error': msg}), 429
 
     priority = get_plan_priority(current_user)
     task_id = _next_task_id()
