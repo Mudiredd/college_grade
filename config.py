@@ -24,4 +24,4 @@ class Config:
     ADMIN_EMAIL = os.getenv('ADMIN_EMAIL', 'vishnu12shiva@gmail.com')
     ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'sravan123')
 
-    UPI_ID = os.getenv('UPI_ID', 'mudireddyreddy68@nyes')
+    UPI_ID = os.getenv('UPI_ID', 'mudireddyreddy346@upi')
