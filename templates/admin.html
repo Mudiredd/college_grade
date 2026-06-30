@@ -4,245 +4,378 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Admin Panel — SR & BGNR</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Segoe UI', sans-serif; background: #0d0709; color: #fff; min-height: 100vh; }
+    * { margin:0;padding:0;box-sizing:border-box; }
+    body { font-family:'Segoe UI',sans-serif;background:#0d0709;color:#fff;min-height:100vh; }
 
-    .topbar {
-      background: #1c0f13; padding: 16px 24px;
-      display: flex; justify-content: space-between; align-items: center;
-      border-bottom: 1px solid #ffffff11;
-    }
-    .topbar-title { color: #ffd740; font-weight: bold; font-size: 1.1rem; }
-    .topbar a { color: #aaa; font-size: 0.85rem; text-decoration: none; }
-    .topbar a:hover { color: #fff; }
+    .topbar { background:#1c0f13;padding:14px 24px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #ffffff11; }
+    .topbar-title { color:#ffd740;font-weight:bold;font-size:1rem; }
+    .topbar a { color:#aaa;font-size:.82rem;text-decoration:none; }
+    .topbar a:hover { color:#fff; }
 
-    .container { max-width: 1000px; margin: 0 auto; padding: 36px 20px; }
+    .container { max-width:1100px;margin:0 auto;padding:28px 20px; }
 
-    .stats {
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-      gap: 16px; margin-bottom: 36px;
-    }
-    .stat-card {
-      background: #1c0f13; border: 1px solid #ffffff11;
-      border-radius: 14px; padding: 20px; text-align: center;
-    }
-    .stat-card .num   { font-size: 2rem; font-weight: bold; margin-bottom: 6px; }
-    .stat-card .label { color: #aaa; font-size: 0.82rem; }
+    /* TOAST */
+    .toast-container { position:fixed;top:16px;right:16px;z-index:999;display:flex;flex-direction:column;gap:8px; }
+    .toast { padding:10px 18px;border-radius:10px;font-size:.85rem;animation:fadeInUp .3s ease;box-shadow:0 4px 20px #00000055; }
+    .toast-success { background:#1a3a1a;color:#00e676;border:1px solid #00e67644; }
+    .toast-error { background:#3a1a1a;color:#ff5252;border:1px solid #ff525244; }
+    @keyframes fadeInUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
 
-    .section { margin-bottom: 36px; }
-    .section-title {
-      font-size: 1rem; font-weight: bold; color: #aaa;
-      text-transform: uppercase; letter-spacing: 0.08em;
-      margin-bottom: 14px; display: flex; align-items: center; gap: 8px;
-    }
-    .badge-count {
-      background: #ff525233; color: #ff5252;
-      font-size: 0.75rem; padding: 2px 10px;
-      border-radius: 20px; font-weight: bold;
-    }
+    /* TABS */
+    .tab-nav { display:flex;gap:4px;margin-bottom:24px;flex-wrap:wrap; }
+    .tab-btn { padding:10px 20px;border:none;border-radius:10px;background:#1c0f13;color:#888;font-size:.82rem;font-weight:600;cursor:pointer;transition:.2s;border:1px solid transparent; }
+    .tab-btn:hover { color:#fff;background:#2a151b; }
+    .tab-btn.active { background:#d4405e;color:#fff;border-color:#d4405e; }
+    .tab-content { display:none; }
+    .tab-content.active { display:block;animation:fadeInUp .3s ease; }
 
-    .flash-msg {
-      padding: 10px 14px; border-radius: 10px; font-size: 0.85rem;
-      margin-bottom: 20px; text-align: center;
-    }
-    .flash-success { background: #00e67622; color: #00e676; border: 1px solid #00e67644; }
-    .flash-error   { background: #ff525222; color: #ff5252; border: 1px solid #ff525244; }
+    /* STATS */
+    .stats { display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px; }
 
-    .data-table {
-      width: 100%; border-collapse: collapse; background: #1c0f13;
-      border-radius: 14px; overflow: hidden; border: 1px solid #ffffff11;
-    }
-    .data-table th {
-      text-align: left; padding: 12px 16px; background: #ffffff08;
-      color: #aaa; font-size: 0.78rem; text-transform: uppercase;
-    }
-    .data-table td {
-      padding: 12px 16px; border-top: 1px solid #ffffff08;
-      font-size: 0.88rem; color: #ccc;
-    }
-    .data-table tr:first-child td { border-top: none; }
+    /* SECTIONS */
+    .section-title { font-size:.9rem;font-weight:bold;color:#aaa;text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px;display:flex;align-items:center;gap:8px; }
+    .section-sub { font-size:.85rem;color:#888;margin-bottom:12px; }
 
-    .status-badge { padding: 3px 10px; border-radius: 8px; font-size: 0.78rem; font-weight: bold; }
-    .status-pending  { background: #ffd74022; color: #ffd740; }
-    .status-approved { background: #00e67622; color: #00e676; }
-    .status-rejected { background: #ff525222; color: #ff5252; }
+    /* FILTER ROW */
+    .filter-row { display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap; }
+    .filter-btn { padding:6px 14px;border-radius:8px;border:1px solid #ffffff11;background:#1c0f13;color:#888;font-size:.78rem;font-weight:600;cursor:pointer;transition:.2s; }
+    .filter-btn:hover { color:#fff; }
+    .filter-btn.active { background:#d4405e22;color:#d4405e;border-color:#d4405e44; }
 
-    .btn-approve {
-      padding: 6px 14px; border-radius: 8px; border: none;
-      background: #00e67622; color: #00e676; font-size: 0.8rem;
-      font-weight: bold; cursor: pointer; text-decoration: none;
-      transition: background 0.2s; margin-right: 6px;
-    }
-    .btn-approve:hover { background: #00e67633; }
+    /* TABLE */
+    .data-table { width:100%;border-collapse:collapse;background:#1c0f13;border-radius:12px;overflow:hidden;border:1px solid #ffffff11; }
+    .data-table th { text-align:left;padding:10px 14px;background:#ffffff08;color:#888;font-size:.74rem;text-transform:uppercase; }
+    .data-table td { padding:10px 14px;border-top:1px solid #ffffff08;font-size:.85rem;color:#ccc; }
+    .data-table tr:first-child td { border-top:none; }
 
-    .btn-reject {
-      padding: 6px 14px; border-radius: 8px; border: none;
-      background: #ff525222; color: #ff5252; font-size: 0.8rem;
-      font-weight: bold; cursor: pointer; text-decoration: none;
-      transition: background 0.2s;
-    }
-    .btn-reject:hover { background: #ff525233; }
+    .status-badge { display:inline-block;padding:2px 10px;border-radius:6px;font-size:.75rem;font-weight:bold; }
+    .status-pending  { background:#ffd74022;color:#ffd740; }
+    .status-approved { background:#00e67622;color:#00e676; }
+    .status-rejected { background:#ff525222;color:#ff5252; }
 
-    .empty-state {
-      text-align: center; padding: 32px; color: #aaa; font-size: 0.88rem;
-      background: #1c0f13; border-radius: 14px; border: 1px solid #ffffff11;
+    .plan-badge { display:inline-block;padding:2px 10px;border-radius:6px;font-size:.75rem;font-weight:bold;background:#d4405e22;color:#d4405e; }
+
+    .admin-tag { background:#ffd74022;color:#ffd740;font-size:.7rem;padding:1px 6px;border-radius:4px;margin-left:4px; }
+
+    .empty-state { text-align:center;padding:28px;color:#888;font-size:.85rem;background:#1c0f13;border-radius:12px;border:1px solid #ffffff11; }
+
+    /* BUTTONS */
+    .btn { display:inline-block;padding:6px 14px;border-radius:8px;border:none;font-size:.78rem;font-weight:600;cursor:pointer;text-decoration:none;transition:.2s;background:#ffffff11;color:#ccc; }
+    .btn:hover { background:#ffffff22;color:#fff; }
+    .btn-green { background:#00e67622;color:#00e676; }
+    .btn-green:hover { background:#00e67644; }
+    .btn-red { background:#ff525222;color:#ff5252; }
+    .btn-red:hover { background:#ff525244; }
+    .btn-yellow { background:#ffd74022;color:#ffd740; }
+    .btn-yellow:hover { background:#ffd74044; }
+    .btn-small { padding:4px 10px;font-size:.75rem; }
+    .actions-cell { display:flex;gap:4px;flex-wrap:wrap; }
+
+    /* YEAR CONTROLS */
+    .year-controls { display:flex;gap:10px;align-items:center;margin-bottom:18px;flex-wrap:wrap; }
+    .year-select { background:#1c0f13;border:1px solid #ffffff22;border-radius:10px;padding:10px 16px;color:#fff;font-size:.9rem;min-width:160px;cursor:pointer; }
+    .year-select:focus { outline:none;border-color:#d4405e; }
+    .year-input { background:#0d0709;border:1px solid #ffffff22;border-radius:8px;padding:8px 12px;color:#fff;width:70px;font-size:.85rem; }
+    .year-input:focus { outline:none;border-color:#d4405e; }
+
+    .inline-form { display:flex;gap:8px;align-items:center;flex-wrap:wrap; }
+
+    /* FOLDER */
+    .folder-header { display:flex;align-items:center;gap:12px;margin-bottom:14px;padding:12px 16px;background:#1c0f13;border-radius:10px;border:1px solid #d4405e33; }
+    .folder-icon { font-size:1.2rem; }
+    .folder-year-label { font-size:1.1rem;font-weight:bold;color:#ffd740; }
+
+    /* INLINE EDIT */
+    .view-mode { display:inline-flex;align-items:center;gap:4px; }
+    .edit-mode { display:none;align-items:center;gap:6px; }
+    .edit-input { background:#0d0709;border:1px solid #ffffff22;border-radius:6px;padding:4px 8px;color:#fff;font-size:.82rem;width:80px; }
+    .edit-input:focus { outline:none;border-color:#d4405e; }
+    .edit-select { background:#0d0709;border:1px solid #ffffff22;border-radius:6px;padding:4px 8px;color:#fff;font-size:.82rem; }
+    .edit-select:focus { outline:none;border-color:#d4405e; }
+    .edit-checkbox { accent-color:#d4405e;width:14px;height:14px; }
+
+    /* ADD PATTERN FORM */
+    .add-form { display:flex;gap:8px;align-items:end;flex-wrap:wrap;padding:14px 16px;background:#1c0f13;border-radius:12px;border:1px solid #ffffff11;margin-top:14px; }
+    .add-form label { font-size:.72rem;color:#888;display:block;margin-bottom:3px; }
+    .add-form input,.add-form select { background:#0d0709;border:1px solid #ffffff22;border-radius:6px;padding:7px 10px;color:#fff;font-size:.82rem; }
+    .add-form input:focus,.add-form select:focus { outline:none;border-color:#d4405e; }
+
+    /* RESPONSIVE */
+    @media(max-width:768px){
+      .container { padding:16px 12px; }
+      .tab-btn { padding:8px 14px;font-size:.76rem; }
+      .data-table th,.data-table td { padding:8px 10px;font-size:.78rem; }
+      .year-select { min-width:120px;font-size:.82rem;padding:8px 12px; }
     }
-    .admin-tag {
-      background: #ffd74022; color: #ffd740;
-      font-size: 0.72rem; padding: 2px 8px;
-      border-radius: 6px; margin-left: 6px;
+    @media(max-width:480px){
+      .stats { grid-template-columns:1fr; }
+      .actions-cell { flex-direction:column; }
+      .add-form { flex-direction:column;align-items:stretch; }
     }
   </style>
 </head>
 <body>
 
 <div class="topbar">
-  <div class="topbar-title">🔐 Admin Panel — SR & BGNR</div>
+  <div class="topbar-title">⚙ SR & BGNR — Admin</div>
   <a href="{{ url_for('auth.logout') }}">Logout</a>
 </div>
 
 <div class="container">
 
   {% with messages = get_flashed_messages(with_categories=true) %}
-    {% for category, message in messages %}
-      <div class="flash-msg flash-{{ category }}">{{ message }}</div>
-    {% endfor %}
+    {% if messages %}
+      <div class="toast-container" id="toastContainer">
+        {% for category, msg in messages %}
+          <div class="toast toast-{{ category }}">{{ msg }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
   {% endwith %}
 
-  <div class="stats">
-    <div class="stat-card">
-      <div class="num" style="color:#ffd740;">{{ pending | length }}</div>
-      <div class="label">Pending Payments</div>
+  <!-- Tabs -->
+  <div class="tab-nav">
+    <button class="tab-btn active" data-tab="dashboard">📊 Dashboard</button>
+    <button class="tab-btn" data-tab="payments">💰 Payments</button>
+    <button class="tab-btn" data-tab="patterns">📋 Year Patterns</button>
+    <button class="tab-btn" data-tab="users">👥 Users</button>
+  </div>
+
+  <!-- ============================== DASHBOARD ============================== -->
+  <div class="tab-content active" id="tab-dashboard">
+    <div class="stats">
+      <div class="stat-card">
+        <div class="num" style="color:#ffd740;font-size:2rem;font-weight:bold;margin-bottom:4px;">{{ pending | length }}</div>
+        <div class="label" style="color:#888;font-size:.82rem;">Pending Payments</div>
+      </div>
+      <div class="stat-card">
+        <div class="num" style="color:#00e676;font-size:2rem;font-weight:bold;margin-bottom:4px;">{{ approved | length }}</div>
+        <div class="label" style="color:#888;font-size:.82rem;">Approved (Recent)</div>
+      </div>
+      <div class="stat-card">
+        <div class="num" style="color:#d4405e;font-size:2rem;font-weight:bold;margin-bottom:4px;">{{ users | length }}</div>
+        <div class="label" style="color:#888;font-size:.82rem;">Total Users</div>
+      </div>
     </div>
-    <div class="stat-card">
-      <div class="num" style="color:#00e676;">{{ approved | length }}</div>
-      <div class="label">Approved (Recent)</div>
-    </div>
-    <div class="stat-card">
-      <div class="num" style="color:#d4405e;">{{ users | length }}</div>
-      <div class="label">Total Users</div>
+
+    <div class="charts-row" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-top:24px;">
+      <div class="chart-box" style="background:#1c0f13;border-radius:14px;padding:18px;border:1px solid #ffffff11;">
+        <div class="section-title">💰 Revenue (6 months)</div>
+        <canvas id="revenueChart" height="180"></canvas>
+      </div>
+      <div class="chart-box" style="background:#1c0f13;border-radius:14px;padding:18px;border:1px solid #ffffff11;">
+        <div class="section-title">📈 Signups (6 months)</div>
+        <canvas id="signupChart" height="180"></canvas>
+      </div>
+      <div class="chart-box" style="background:#1c0f13;border-radius:14px;padding:18px;border:1px solid #ffffff11;">
+        <div class="section-title">📊 Plan Distribution</div>
+        <canvas id="planChart" height="180"></canvas>
+      </div>
     </div>
   </div>
 
-  <!-- Pending Payments -->
-  <div class="section">
-    <div class="section-title">
-      ⏳ Pending Payments
-      {% if pending %}
-        <span class="badge-count">{{ pending | length }}</span>
-      {% endif %}
+  <!-- ============================== PAYMENTS ============================== -->
+  <div class="tab-content" id="tab-payments">
+    <div class="section-title">💰 All Payments</div>
+    <div class="filter-row">
+      <button class="filter-btn active" data-filter="all">All ({{ all_payments | length }})</button>
+      <button class="filter-btn" data-filter="pending">Pending ({{ pending | length }})</button>
+      <button class="filter-btn" data-filter="approved">Approved</button>
+      <button class="filter-btn" data-filter="rejected">Rejected</button>
     </div>
-    {% if pending %}
-      <table class="data-table">
+    <div id="bulkBar" style="display:none;margin-bottom:12px;gap:8px;align-items:center;flex-wrap:wrap;">
+      <span style="color:#aaa;font-size:.82rem;"><span id="selectedCount">0</span> selected</span>
+      <button class="btn btn-green" onclick="bulkAction('approve')">✅ Approve Selected</button>
+      <button class="btn btn-red" onclick="bulkAction('reject')">❌ Reject Selected</button>
+      <button class="btn btn-yellow" onclick="bulkAction('pending')">↩ Pending</button>
+      <button class="btn" onclick="clearSelection()">✖ Clear</button>
+    </div>
+    {% if all_payments %}
+      <table class="data-table" id="paymentsTable">
         <thead>
-          <tr><th>#</th><th>User</th><th>Plan</th><th>Amount</th><th>UTR</th><th>Submitted</th><th>Actions</th></tr>
+          <tr>
+            <th style="width:32px;"><input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)"></th>
+            <th>#</th><th>User</th><th>Plan</th><th>Amount</th><th>UTR</th><th>Date</th><th>Status</th><th>Actions</th>
+          </tr>
         </thead>
         <tbody>
-          {% for p in pending %}
-            <tr>
+          {% for p in all_payments %}
+            <tr data-status="{{ p.status }}" data-pid="{{ p.id }}">
+              <td><input type="checkbox" class="payment-checkbox" value="{{ p.id }}" onchange="updateBulkBar()"></td>
               <td style="color:#6a4848;">{{ loop.index }}</td>
               <td>
                 {% for u in users %}{% if u.id == p.user_id %}
-                  {{ u.name }}<br>
-                  <span style="font-size:0.78rem; color:#c09898;">{{ u.email }}</span>
+                  {{ u.name }}<br><span style="font-size:.74rem;color:#887878;">{{ u.email }}</span>
                 {% endif %}{% endfor %}
               </td>
               <td>{{ p.plan | capitalize }}</td>
               <td style="color:#ffd740;">₹{{ p.amount | int }}</td>
-              <td style="font-family:monospace; font-size:0.82rem;">{{ p.utr }}</td>
-              <td>{{ p.submitted_at.strftime('%d %b %Y, %I:%M %p') }}</td>
+              <td style="font-family:monospace;font-size:.8rem;">{{ p.utr }}</td>
+              <td>{{ p.submitted_at.strftime('%d-%b-%Y') }}</td>
               <td>
-                <a href="{{ url_for('admin.approve_payment', payment_id=p.id) }}" class="btn-approve">✅ Approve</a>
-                <a href="{{ url_for('admin.reject_payment', payment_id=p.id) }}" class="btn-reject">❌ Reject</a>
+                {% if p.status == 'pending' %}
+                  <span class="status-badge status-pending">Pending</span>
+                {% elif p.status == 'approved' %}
+                  <span class="status-badge status-approved">Approved</span>
+                {% else %}
+                  <span class="status-badge status-rejected">Rejected</span>
+                {% endif %}
+              </td>
+              <td class="actions-cell">
+                {% if p.status == 'pending' %}
+                  <button class="btn btn-green" onclick="setStatus({{ p.id }},'approved')">✅ Approve</button>
+                  <button class="btn btn-red" onclick="setStatus({{ p.id }},'rejected')">❌ Reject</button>
+                {% elif p.status == 'approved' %}
+                  <button class="btn btn-red" onclick="setStatus({{ p.id }},'rejected')">❌ Reject</button>
+                  <button class="btn btn-yellow" onclick="setStatus({{ p.id }},'pending')">↩ Pending</button>
+                {% else %}
+                  <button class="btn btn-green" onclick="setStatus({{ p.id }},'approved')">✅ Approve</button>
+                  <button class="btn btn-yellow" onclick="setStatus({{ p.id }},'pending')">↩ Pending</button>
+                {% endif %}
               </td>
             </tr>
           {% endfor %}
         </tbody>
       </table>
     {% else %}
-      <div class="empty-state">🎉 No pending payments!</div>
+      <div class="empty-state">No payments yet.</div>
     {% endif %}
   </div>
 
-  <!-- Recently Approved -->
-  <div class="section">
-    <div class="section-title">✅ Recently Approved</div>
-    {% if approved %}
-      <table class="data-table">
-        <thead>
-          <tr><th>#</th><th>User</th><th>Plan</th><th>Amount</th><th>UTR</th><th>Date</th></tr>
-        </thead>
-        <tbody>
-          {% for p in approved %}
-            <tr>
-              <td style="color:#6a4848;">{{ loop.index }}</td>
-              <td>{% for u in users %}{% if u.id == p.user_id %}{{ u.name }}{% endif %}{% endfor %}</td>
-              <td>{{ p.plan | capitalize }}</td>
-              <td style="color:#00e676;">₹{{ p.amount | int }}</td>
-              <td style="font-family:monospace; font-size:0.82rem;">{{ p.utr }}</td>
-              <td>{{ p.submitted_at.strftime('%d %b %Y') }}</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    {% else %}
-      <div class="empty-state">No approved payments yet.</div>
-    {% endif %}
+  <!-- ============================== YEAR PATTERNS ============================== -->
+  <div class="tab-content" id="tab-patterns">
+    <div class="section-title">📋 Year Patterns</div>
+
+    <div class="year-controls">
+      <select id="yearSelector" class="year-select">
+        <option value="">— Select Year —</option>
+        {% for y in years %}
+          <option value="{{ y }}">20{{ y }}</option>
+        {% endfor %}
+      </select>
+      <form method="POST" action="{{ url_for('admin.seed_patterns') }}" class="inline-form">
+        <input type="number" name="joining_year" placeholder="YY" class="year-input" required>
+        <button type="submit" class="btn btn-green">🌱 Create Year Folder</button>
+      </form>
+    </div>
+
+    <div id="yearFolder" style="display:none;">
+      <div class="folder-header">
+        <span class="folder-icon">📁</span>
+        <span class="folder-year-label" id="folderYearLabel">Year 20XX</span>
+        <form method="POST" action="{{ url_for('admin.seed_patterns') }}" class="inline-form" style="margin-left:auto;">
+          <input type="hidden" name="joining_year" id="seedYearInput" value="">
+          <button type="submit" class="btn btn-green btn-small">🌱 Auto-Seed</button>
+        </form>
+        <a href="#" id="deleteYearBtn" class="btn btn-red btn-small" onclick="return deleteYear()">🗑 Delete Year</a>
+      </div>
+
+      <div id="patternsContainer">
+        {% if patterns %}
+          <table class="data-table" id="patternsTable">
+            <thead>
+              <tr><th>Exam</th><th>Semester</th><th>Type</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="patternsBody">
+              {% for p in patterns %}
+                <tr class="pattern-row" data-year="{{ p.joining_year }}" style="display:none;">
+                  <td>
+                    <span class="view-mode"><code style="color:#ffd740;">{{ p.exam_name }}</code></span>
+                    <span class="edit-mode">
+                      <input type="text" class="edit-input" value="{{ p.exam_name }}" style="width:90px;text-transform:uppercase;">
+                    </span>
+                  </td>
+                  <td>
+                    <span class="view-mode">Sem <strong>{{ p.semester }}</strong></span>
+                    <span class="edit-mode">
+                      <select class="edit-select">
+                        {% for s in range(1,9) %}<option value="{{ s }}" {% if s == p.semester %}selected{% endif %}>Sem {{ s }}</option>{% endfor %}
+                      </select>
+                    </span>
+                  </td>
+                  <td>
+                    <span class="view-mode">
+                      {% if p.is_supply %}
+                        <span class="status-badge status-rejected">Supply</span>
+                      {% else %}
+                        <span class="status-badge status-approved">Regular</span>
+                      {% endif %}
+                    </span>
+                    <span class="edit-mode">
+                      <label style="color:#aaa;font-size:.78rem;"><input type="checkbox" class="edit-checkbox" {% if p.is_supply %}checked{% endif %}> Supply</label>
+                    </span>
+                  </td>
+                  <td class="actions-cell">
+                    <span class="view-mode">
+                      <button class="btn btn-small" onclick="editRow(this)">✏️ Edit</button>
+                      <a href="{{ url_for('admin.delete_pattern', pattern_id=p.id) }}" class="btn btn-small btn-red" onclick="return confirm('Delete this pattern?')">🗑 Delete</a>
+                    </span>
+                    <span class="edit-mode">
+                      <button class="btn btn-small btn-green" onclick="saveRow(this, {{ p.id }})">💾 Save</button>
+                      <button class="btn btn-small" onclick="cancelEdit(this)">✖ Cancel</button>
+                    </span>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <div class="empty-state">No patterns yet. Select a year or create one above.</div>
+        {% endif %}
+      </div>
+
+      <!-- Add pattern form -->
+      <div class="add-form">
+        <div>
+          <label>Exam Name</label>
+          <input type="text" id="addExamName" placeholder="JAN-24" style="width:100px;">
+        </div>
+        <div>
+          <label>Semester</label>
+          <select id="addSemester">
+            {% for s in range(1,9) %}<option value="{{ s }}">Sem {{ s }}</option>{% endfor %}
+          </select>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;padding-top:18px;">
+          <input type="checkbox" id="addIsSupply" class="edit-checkbox">
+          <label for="addIsSupply" style="color:#888;font-size:.78rem;display:inline;">Supply</label>
+        </div>
+        <button class="btn btn-green" onclick="addPattern()" style="padding:7px 18px;">➕ Add</button>
+      </div>
+    </div>
   </div>
 
-  <!-- All Users -->
-  <div class="section">
+  <!-- ============================== USERS ============================== -->
+  <div class="tab-content" id="tab-users">
     <div class="section-title">👥 All Users</div>
     <table class="data-table">
       <thead>
-        <tr><th>#</th><th>Name</th><th>Email</th><th>Reg No</th><th>Joined</th><th>Subscription</th><th>Action</th></tr>
+        <tr><th>#</th><th>Name</th><th>Email</th><th>Reg No</th><th>Joined</th><th>Plan</th><th>Actions</th></tr>
       </thead>
       <tbody>
         {% for u in users %}
           <tr>
             <td style="color:#6a4848;">{{ loop.index }}</td>
-            <td>
-              {{ u.name }}
-              {% if u.is_admin %}<span class="admin-tag">Admin</span>{% endif %}
-            </td>
-            <td style="color:#c09898;">{{ u.email }}</td>
-            <td style="font-family:monospace;">{{ u.regd_no }}</td>
-            <td>{{ u.created_at.strftime('%d %b %Y') }}</td>
+            <td>{{ u.name }}{% if u.is_admin %}<span class="admin-tag">Admin</span>{% endif %}</td>
+            <td style="color:#887878;">{{ u.email }}</td>
+            <td style="font-family:monospace;">{{ u.regd_no or '—' }}</td>
+            <td>{{ u.created_at.strftime('%d-%b-%Y') }}</td>
             <td>
               {% set sub = u.subscriptions | selectattr('is_active', 'equalto', true) | first %}
               {% if sub %}
-                <span class="status-badge status-approved">
-                  {{ sub.plan | capitalize }}
-                  {% if sub.end_date %} · {{ sub.end_date.strftime('%d %b %Y') }}
-                  {% else %} · Lifetime{% endif %}
-                </span>
+                <span class="plan-badge">{{ sub.plan | capitalize }}</span><br>
+                <span style="font-size:.72rem;color:#666;">ends {{ sub.end_date.strftime('%d-%b-%Y') if sub.end_date else 'never' }}</span>
               {% else %}
-                <span class="status-badge status-rejected">No Sub</span>
+                <span style="color:#666;font-size:.78rem;">No Sub</span>
               {% endif %}
             </td>
-            <td>
+            <td class="actions-cell">
+              <a href="{{ url_for('admin.reset_user_limits', user_id=u.id) }}" class="btn btn-small" onclick="return confirm('Reset today\'s limit for {{ u.name }}?')">🔄 Reset</a>
               {% if not u.is_admin %}
-                {% set sub = u.subscriptions | selectattr('is_active', 'equalto', true) | first %}
-                <a href="{{ url_for('admin.reset_user_limits', user_id=u.id) }}"
-                   class="btn-approve"
-                   style="margin-right:4px;"
-                   onclick="return confirm('Reset today\'s search limit for {{ u.name }}?')">
-                  🔄 Reset
-                </a>
-                {% if sub %}
-                  <a href="{{ url_for('admin.cancel_subscription', user_id=u.id) }}"
-                     class="btn-reject"
-                     onclick="return confirm('Cancel subscription for {{ u.name }}?')">
-                    ❌ Cancel Sub
-                  </a>
-                {% endif %}
-                <a href="{{ url_for('admin.delete_user', user_id=u.id) }}"
-                   class="btn-reject"
-                   style="margin-left:4px;"
-                   onclick="return confirm('Delete user {{ u.name }} and all their data? This cannot be undone.')">
-                  🗑 Delete
-                </a>
+                <a href="{{ url_for('admin.cancel_subscription', user_id=u.id) }}" class="btn btn-small btn-red" onclick="return confirm('Cancel sub for {{ u.name }}?')">🚫 Cancel Sub</a>
+                <a href="{{ url_for('admin.delete_user', user_id=u.id) }}" class="btn btn-small btn-red" onclick="return confirm('Delete {{ u.name }} and all data? Cannot undo.')">🗑 Delete</a>
               {% endif %}
             </td>
           </tr>
@@ -252,5 +385,236 @@
   </div>
 
 </div>
+
+<script>
+  // ── Toast auto-dismiss ──
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.toast').forEach(t => {
+      setTimeout(() => { t.style.opacity='0';t.style.transition='opacity .5s';setTimeout(()=>t.remove(),500); }, 3000);
+    });
+  });
+
+  // ── Tab switching ──
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  // ── Payment filter ──
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const f = btn.dataset.filter;
+      document.querySelectorAll('#paymentsTable tbody tr').forEach(row => {
+        row.style.display = (f === 'all' || row.dataset.status === f) ? '' : 'none';
+      });
+    });
+  });
+
+  // ── Year folder selector ──
+  document.getElementById('yearSelector').addEventListener('change', function() {
+    const year = this.value;
+    const folder = document.getElementById('yearFolder');
+    if (!year) { folder.style.display = 'none'; return; }
+    folder.style.display = 'block';
+    document.getElementById('folderYearLabel').textContent = 'Year 20' + year;
+    document.getElementById('seedYearInput').value = year;
+    document.querySelectorAll('.pattern-row').forEach(row => {
+      row.style.display = row.dataset.year === year ? '' : 'none';
+    });
+    // Set year in add form hidden field for direct add — not using hidden, we use JS to submit
+  });
+
+  // ── Inline edit ──
+  function editRow(btn) {
+    const row = btn.closest('tr');
+    row.querySelectorAll('.view-mode').forEach(el => el.style.display = 'none');
+    row.querySelectorAll('.edit-mode').forEach(el => el.style.display = 'inline-flex');
+  }
+
+  function cancelEdit(btn) {
+    const row = btn.closest('tr');
+    row.querySelectorAll('.view-mode').forEach(el => el.style.display = 'inline-flex');
+    row.querySelectorAll('.edit-mode').forEach(el => el.style.display = 'none');
+  }
+
+  function saveRow(btn, patternId) {
+    const row = btn.closest('tr');
+    const examName = row.querySelector('.edit-input').value;
+    const semester = row.querySelector('.edit-select').value;
+    const isSupply = row.querySelector('.edit-checkbox').checked;
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '{{ url_for("admin.edit_pattern", pattern_id=0) }}'.replace('/0', '/' + patternId);
+    const fields = { exam_name: examName, semester: semester };
+    if (isSupply) fields.is_supply = 'on';
+    for (const [k, v] of Object.entries(fields)) {
+      const inp = document.createElement('input');
+      inp.type = 'hidden'; inp.name = k; inp.value = v;
+      form.appendChild(inp);
+    }
+    document.body.appendChild(form);
+    form.submit();
+  }
+
+  // ── Add pattern via hidden form ──
+  function addPattern() {
+    const year = document.getElementById('yearSelector').value;
+    if (!year) { alert('Select a year first'); return; }
+    const exam = document.getElementById('addExamName').value.trim().toUpperCase();
+    if (!exam) { alert('Enter exam name'); return; }
+    const semester = document.getElementById('addSemester').value;
+    const isSupply = document.getElementById('addIsSupply').checked;
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '{{ url_for("admin.add_pattern") }}';
+    { const inp = document.createElement('input'); inp.type = 'hidden'; inp.name = 'joining_year'; inp.value = year; form.appendChild(inp); }
+    { const inp = document.createElement('input'); inp.type = 'hidden'; inp.name = 'exam_name'; inp.value = exam; form.appendChild(inp); }
+    { const inp = document.createElement('input'); inp.type = 'hidden'; inp.name = 'semester'; inp.value = semester; form.appendChild(inp); }
+    if (isSupply) { const inp = document.createElement('input'); inp.type = 'hidden'; inp.name = 'is_supply'; inp.value = 'on'; form.appendChild(inp); }
+    document.body.appendChild(form);
+    form.submit();
+  }
+
+  // ── Bulk payment actions ──
+  let selectedPayments = new Set();
+
+  function toggleSelectAll(checkbox) {
+    document.querySelectorAll('.payment-checkbox').forEach(cb => {
+      cb.checked = checkbox.checked;
+    });
+    updateBulkBar();
+  }
+
+  function updateBulkBar() {
+    selectedPayments.clear();
+    document.querySelectorAll('.payment-checkbox:checked').forEach(cb => selectedPayments.add(parseInt(cb.value)));
+    const bar = document.getElementById('bulkBar');
+    document.getElementById('selectedCount').textContent = selectedPayments.size;
+    bar.style.display = selectedPayments.size > 0 ? 'flex' : 'none';
+  }
+
+  function clearSelection() {
+    document.querySelectorAll('.payment-checkbox').forEach(cb => cb.checked = false);
+    document.getElementById('selectAll').checked = false;
+    updateBulkBar();
+  }
+
+  function setStatus(paymentId, status) {
+    const labels = {approved:'✅ Approve', rejected:'❌ Reject', pending:'↩ Revert to Pending'};
+    if (!confirm(labels[status] + ' this payment?')) return;
+    fetch('{{ url_for("admin.set_payment_status", payment_id=0) }}'.replace('0', paymentId), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: status })
+    }).then(r => r.json()).then(data => {
+      if (data.ok) window.location.reload();
+      else alert(data.error || 'Failed');
+    }).catch(() => alert('Network error'));
+  }
+
+  function bulkAction(action) {
+    if (selectedPayments.size === 0) return;
+    const labels = {approve:'Approve', reject:'Reject', pending:'Revert to Pending'};
+    if (!confirm(labels[action] + ' ' + selectedPayments.size + ' payment(s)?')) return;
+    fetch('{{ url_for("admin.bulk_payment_action") }}', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: action, ids: [...selectedPayments] })
+    }).then(r => r.json()).then(data => {
+      if (data.ok) window.location.reload();
+      else alert(data.error || 'Failed');
+    }).catch(() => alert('Network error'));
+  }
+
+  // ── Delete year folder ──
+  function deleteYear() {
+    const year = document.getElementById('yearSelector').value;
+    if (!year) { alert('Select a year first'); return false; }
+    if (!confirm('Delete all patterns for 20' + year + '? This cannot be undone.')) return false;
+    window.location.href = '{{ url_for("admin.delete_year", joining_year=0) }}'.replace('/0', '/' + year);
+    return false;
+  }
+
+  // ── Charts ──
+  document.addEventListener('DOMContentLoaded', function() {
+    Chart.defaults.color = '#b09090';
+    Chart.defaults.borderColor = 'rgba(255,255,255,.06)';
+
+    new Chart(document.getElementById('revenueChart'), {
+      type: 'bar',
+      data: {
+        labels: {{ rev_labels | tojson }},
+        datasets: [{
+          label: 'Revenue (₹)',
+          data: {{ revenue_data | tojson }},
+          backgroundColor: 'rgba(212,64,94,.6)',
+          borderColor: '#d4405e',
+          borderWidth: 1,
+          borderRadius: 4
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,.04)' } },
+          x: { grid: { display: false } }
+        }
+      }
+    });
+
+    new Chart(document.getElementById('signupChart'), {
+      type: 'line',
+      data: {
+        labels: {{ rev_labels | tojson }},
+        datasets: [{
+          label: 'Signups',
+          data: {{ signup_data | tojson }},
+          borderColor: '#d4405e',
+          backgroundColor: 'rgba(212,64,94,.1)',
+          fill: true,
+          tension: .3,
+          pointRadius: 4,
+          pointBackgroundColor: '#d4405e'
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,.04)' } },
+          x: { grid: { display: false } }
+        }
+      }
+    });
+
+    new Chart(document.getElementById('planChart'), {
+      type: 'doughnut',
+      data: {
+        labels: ['Free', 'Basic', 'Monthly', 'Yearly'],
+        datasets: [{
+          data: [{{ plan_counts.free }}, {{ plan_counts.basic }}, {{ plan_counts.monthly }}, {{ plan_counts.yearly }}],
+          backgroundColor: ['#d4405e', '#ffd740', '#00e676', '#4285F4'],
+          borderWidth: 0
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { padding: 14, usePointStyle: true, pointStyle: 'circle' }
+          }
+        }
+      }
+    });
+  });
+</script>
 </body>
 </html>

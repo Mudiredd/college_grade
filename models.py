@@ -16,6 +16,7 @@ class User(UserMixin, db.Model):
     is_admin          = db.Column(db.Boolean, default=False)
     plan              = db.Column(db.String(20), default='free')
     email_verified    = db.Column(db.Boolean, default=False)
+    google_id         = db.Column(db.String(200), nullable=True, unique=True)
     password_changed_at = db.Column(db.DateTime, nullable=True)
     created_at        = db.Column(db.DateTime, default=datetime.utcnow)
     subscriptions     = db.relationship('Subscription', backref='user', lazy=True)
@@ -51,6 +52,18 @@ class Payment(db.Model):
 
     __table_args__ = (
         db.Index('ix_payment_user_date', 'user_id', 'submitted_at'),
+    )
+
+
+class SemesterPattern(db.Model):
+    id           = db.Column(db.Integer, primary_key=True)
+    joining_year = db.Column(db.Integer, nullable=False, index=True)
+    exam_name    = db.Column(db.String(20), nullable=False)
+    semester     = db.Column(db.Integer, nullable=False)
+    is_supply    = db.Column(db.Boolean, default=False)
+
+    __table_args__ = (
+        db.UniqueConstraint('joining_year', 'exam_name', 'semester', 'is_supply', name='uq_pattern'),
     )
 
 

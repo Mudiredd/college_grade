@@ -1,4 +1,5 @@
 import os
+import re
 import logging
 import time
 import json
@@ -10,7 +11,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 from flask import (
-    Flask, render_template, request, jsonify,
+    Flask, current_app, render_template, request, jsonify,
     Response, redirect, url_for, flash, send_file
 )
 from flask_cors import CORS
@@ -21,7 +22,7 @@ from config import Config
 from models import db, User, Subscription, Payment, SearchHistory
 
 # ===================== EXTENSIONS =====================
-from extensions import bcrypt, mail, migrate, limiter, init_serializer
+from extensions import bcrypt, mail, migrate, limiter, init_serializer, oauth
 
 # ===================== BLUEPRINTS =====================
 from auth import auth_bp
@@ -91,9 +92,13 @@ def check_search_limit(user):
         if cnt >= 1:
             return False, 'Free trial daily limit reached (1/day)'
     if plan == 'basic':
-        total = SearchHistory.query.filter_by(user_id=user.id).count()
-        if total >= 1:
-            return False, 'Basic plan limit reached (1 search total)'
+        today = datetime.now().date()
+        cnt = SearchHistory.query.filter(
+            SearchHistory.user_id == user.id,
+            db.func.date(SearchHistory.searched_at) == today
+        ).count()
+        if cnt >= 3:
+            return False, 'Basic plan daily limit reached (3/day)'
     elif plan == 'monthly':
         today = datetime.now().date()
         cnt = SearchHistory.query.filter(
@@ -501,6 +506,15 @@ bcrypt.init_app(app)
 mail.init_app(app)
 migrate.init_app(app, db)
 limiter.init_app(app)
+oauth.init_app(app)
+
+oauth.register(
+    'google',
+    client_id=app.config['GOOGLE_CLIENT_ID'],
+    client_secret=app.config['GOOGLE_CLIENT_SECRET'],
+    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+    client_kwargs={'scope': 'openid email profile'},
+)
 
 with app.app_context():
     init_serializer(app.config['SECRET_KEY'])
@@ -544,11 +558,7 @@ def get_active_subscription(user):
     if not sub:
         return None
 
-    if (
-        sub.plan == 'monthly'
-        and sub.end_date
-        and sub.end_date < datetime.now()
-    ):
+    if sub.end_date and sub.end_date < datetime.now():
         sub.is_active = False
         db.session.commit()
         return None
@@ -574,13 +584,10 @@ def index():
     searches_today = get_searches_today(current_user)
 
     plan = get_user_plan(current_user)
-    limits = {'free': 1, 'basic': 1, 'monthly': 4, 'yearly': 8}
+    limits = {'free': 1, 'basic': 3, 'monthly': 4, 'yearly': 8}
     daily_limit = limits.get(plan, 0)
-    if plan == 'basic':
-        total = SearchHistory.query.filter_by(user_id=current_user.id).count()
-        searches_left = max(0, daily_limit - total)
-    else:
-        searches_left = max(0, daily_limit - searches_today)
+    searches_left = max(0, daily_limit - searches_today)
+    usage_pct = round((searches_today / daily_limit) * 100) if daily_limit > 0 else 0
 
     return render_template(
         'index.html',
@@ -588,7 +595,8 @@ def index():
         sub=sub,
         plan=plan,
         searches_today=searches_today,
-        searches_left=searches_left
+        searches_left=searches_left,
+        usage_pct=usage_pct
     )
 
 # ===================== SEARCH LIMIT =====================
@@ -596,31 +604,86 @@ def index():
 @login_required
 def searches_remaining():
     count = get_searches_today(current_user)
+    plan = get_user_plan(current_user)
+    limits = {'free': 1, 'basic': 3, 'monthly': 4, 'yearly': 8}
+    daily_limit = limits.get(plan, 0)
     return jsonify({
         'searches_today': count,
-        'searches_left': max(0, 5 - count)
+        'searches_left': max(0, daily_limit - count),
+        'usage_pct': round((count / daily_limit) * 100) if daily_limit > 0 else 0,
+        'plan': plan
     })
+
+# ===================== TELEGRAM NOTIFIER =====================
+def send_telegram(message):
+    token = current_app.config.get('TELEGRAM_BOT_TOKEN', '')
+    chat_id = current_app.config.get('ADMIN_CHAT_ID', '')
+    if not token or not chat_id:
+        logger.warning("Telegram not configured — skipping notification")
+        return False
+    try:
+        resp = requests.post(
+            f'https://api.telegram.org/bot{token}/sendMessage',
+            json={'chat_id': chat_id, 'text': message, 'parse_mode': 'HTML'},
+            timeout=10
+        )
+        if not resp.ok:
+            logger.warning(f"Telegram API error: {resp.status_code} {resp.text}")
+            return False
+        logger.info("Telegram notification sent")
+        return True
+    except Exception as e:
+        logger.exception(f"Telegram send failed: {e}")
+        return False
+
 
 # ===================== SUBSCRIBE =====================
 @app.route('/subscribe')
 @login_required
 def subscribe():
     sub = get_active_subscription(current_user)
-    if sub:
-        return redirect(url_for('index'))
+    current_plan = sub.plan if sub else None
 
-    return render_template('subscribe.html', upi_id=app.config['UPI_ID'])
+    plan = request.args.get('plan', current_plan or 'yearly')
+    if plan not in ('basic', 'monthly', 'yearly'):
+        plan = current_plan or 'yearly'
+
+    return render_template(
+        'subscribe.html',
+        upi_id=app.config['UPI_ID'],
+        selected_plan=plan,
+        sub=sub,
+        current_plan=current_plan
+    )
 
 # ===================== PAYMENT =====================
 @app.route('/submit-payment', methods=['POST'])
 @login_required
 @limiter.limit("5 per minute")
 def submit_payment():
-    utr = request.form.get('utr').strip()
+    utr_raw = request.form.get('utr', '')
+    utr = utr_raw.strip()
     plan = request.form.get('plan')
 
+    if not utr:
+        flash("Please enter your UTR / Transaction ID.", "error")
+        return redirect(url_for('subscribe', plan=plan))
+
+    if not re.match(r'^[A-Za-z0-9]{6,30}$', utr):
+        flash("UTR must be 6-30 alphanumeric characters.", "error")
+        return redirect(url_for('subscribe', plan=plan))
+
     amounts = {'basic': 15.0, 'monthly': 49.0, 'yearly': 129.0}
-    amount = amounts.get(plan, 0)
+    if plan not in amounts:
+        flash("Invalid plan selected.", "error")
+        return redirect(url_for('subscribe'))
+
+    amount = amounts[plan]
+
+    existing = Payment.query.filter_by(utr=utr).first()
+    if existing:
+        flash("This UTR has already been submitted.", "error")
+        return redirect(url_for('subscribe', plan=plan))
 
     payment = Payment(
         user_id=current_user.id,
@@ -632,8 +695,47 @@ def submit_payment():
     db.session.add(payment)
     db.session.commit()
 
+    # ── Notify admin (email) ──
+    try:
+        admin_email = current_app.config['ADMIN_EMAIL']
+        msg = Message(
+            subject='💰 New Payment Received — SR & BGNR',
+            sender=current_app.config['MAIL_USERNAME'],
+            recipients=[admin_email]
+        )
+        msg.body = f"""New payment submitted by {current_user.name} ({current_user.email}).
+
+Plan: {plan}
+Amount: ₹{amount}
+UTR: {utr}
+
+Approve/reject in the admin panel."""
+        with current_app.app_context():
+            mail.send(msg)
+    except Exception as e:
+        logger.exception(f"Admin notify mail error: {e}")
+
+    # ── Notify admin (Telegram) ──
+    try:
+        send_telegram(
+            f"💰 <b>New Payment Received</b>\n\n"
+            f"<b>User:</b> {current_user.name} / {current_user.email}\n"
+            f"<b>Plan:</b> {plan}\n"
+            f"<b>Amount:</b> ₹{amount}\n"
+            f"<b>UTR:</b> {utr}"
+        )
+    except Exception as e:
+        logger.exception("Telegram notify error")
+
     flash("Payment submitted!", "success")
     return redirect(url_for('account'))
+
+# ===================== CONTACT =====================
+@app.route('/contact')
+@login_required
+def contact():
+    return render_template('contact.html')
+
 
 # ===================== ACCOUNT =====================
 @app.route('/account')
@@ -706,7 +808,7 @@ def generate_pdf():
         from reportlab.pdfbase import pdfmetrics
         from reportlab.pdfbase.ttfonts import TTFont
         from reportlab.platypus import (
-            SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+            SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, KeepTogether, Flowable
         )
         from reportlab.lib.styles import ParagraphStyle
         from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
@@ -716,56 +818,45 @@ def generate_pdf():
         data = json.loads(raw)
 
         try:
-            pdfmetrics.registerFont(TTFont('Inter', r'C:\Windows\Fonts\segoeui.ttf'))
-            pdfmetrics.registerFont(TTFont('InterBold', r'C:\Windows\Fonts\segoeuib.ttf'))
-            pdfmetrics.registerFont(TTFont('InterLight', r'C:\Windows\Fonts\segoeuil.ttf'))
-            F = 'Inter'
-            FB = 'InterBold'
-            FL = 'InterLight'
+            pdfmetrics.registerFont(TTFont('Cal', r'C:\Windows\Fonts\calibri.ttf'))
+            pdfmetrics.registerFont(TTFont('CalB', r'C:\Windows\Fonts\calibrib.ttf'))
+            F, FB = 'Cal', 'CalB'
         except Exception:
-            F = 'Helvetica'
-            FB = 'Helvetica-Bold'
-            FL = 'Helvetica'
+            F, FB = 'Helvetica', 'Helvetica-Bold'
 
-        BG       = colors.HexColor("#0d0709")
-        CARD     = colors.HexColor("#1a1a2e")
-        CARD2    = colors.HexColor("#141228")
-        ACCENT   = colors.HexColor("#d4405e")
-        GOLD     = colors.HexColor("#ffd740")
-        GREEN    = colors.HexColor("#00e676")
-        RED      = colors.HexColor("#ff5252")
-        TXT      = colors.HexColor("#ffffff")
-        TXT2     = colors.HexColor("#c09898")
-        TXT3     = colors.HexColor("#6a4848")
-        BORDER   = colors.HexColor("#2a1a20")
-
-        PASS_ROW  = colors.HexColor("#0a1a10")
-        FAIL_ROW  = colors.HexColor("#1e0a0a")
-        SUPP_ROW  = colors.HexColor("#1a1608")
-        PASS_LEFT = GREEN
-        FAIL_LEFT = RED
-        SUPP_LEFT = GOLD
+        BG     = colors.HexColor("#0d0709")
+        CARD   = colors.HexColor("#1a1a2e")
+        ACCENT = colors.HexColor("#d4405e")
+        GOLD   = colors.HexColor("#ffd740")
+        GREEN  = colors.HexColor("#00e676")
+        RED    = colors.HexColor("#ff5252")
+        TXT    = colors.HexColor("#ffffff")
+        TXT2   = colors.HexColor("#c09898")
+        TXT3   = colors.HexColor("#6a4848")
+        PASS_BG = colors.HexColor("#0a1a10")
+        FAIL_BG = colors.HexColor("#1e0a0a")
+        SUP_BG  = colors.HexColor("#1a1608")
+        PILL_P = colors.HexColor("#0a2e1a")
+        PILL_F = colors.HexColor("#2e0c0c")
+        PILL_S = colors.HexColor("#2a2208")
+        DIM    = colors.HexColor("#3a2a30")
 
         now = datetime.now()
         date_str = now.strftime("%d %b %Y")
         time_str = now.strftime("%d/%m/%Y, %H:%M")
 
-        total_subs = 0
-        total_passed = 0
-        total_arrears = 0
-        sem_data_list = []
-        for sem_num in range(1, 9):
-            sd = data.get(str(sem_num))
+        total_subs = total_passed = total_arrears = 0
+        sem_list = []
+        for sn in range(1, 9):
+            sd = data.get(str(sn))
             if not sd:
-                sem_data_list.append((sem_num, None))
+                sem_list.append((sn, None))
                 continue
-            subjects = sd.get("subjects", [])
-            passed = sum(1 for s in subjects if s.get("status") == "pass")
-            failed = sum(1 for s in subjects if s.get("status") == "fail")
-            total_subs += len(subjects)
-            total_passed += passed
-            total_arrears += failed
-            sem_data_list.append((sem_num, sd))
+            subs = sd.get("subjects", [])
+            total_subs += len(subs)
+            total_passed += sum(1 for s in subs if s["status"] == "pass")
+            total_arrears += sum(1 for s in subs if s["status"] == "fail")
+            sem_list.append((sn, sd))
 
         buf = BytesIO()
         doc = SimpleDocTemplate(buf, pagesize=A4,
@@ -773,11 +864,76 @@ def generate_pdf():
                                 topMargin=8*mm, bottomMargin=14*mm)
         pw = A4[0] - 28*mm
 
-        def S(sz, clr=TXT, align=TA_LEFT, leading=None, bold=False):
-            fn = FB if bold else F
+        def S(sz, clr=TXT, align=TA_LEFT, bold=False):
             c = clr if isinstance(clr, colors.Color) else colors.HexColor(clr)
-            return ParagraphStyle("", fontName=fn, fontSize=sz, textColor=c,
-                                  alignment=align, leading=leading or sz * 1.4)
+            return ParagraphStyle("", fontName=FB if bold else F, fontSize=sz,
+                                  textColor=c, alignment=align, leading=sz * 1.35)
+
+        class CardFlowable(Flowable):
+            def __init__(self, inner, card_width, bg, border=None, radius=8,
+                         lp=16.5, rp=16.5, tp=15, bp=15):
+                Flowable.__init__(self)
+                self.inner = inner
+                self.bg = bg
+                self.border = border or bg
+                self.radius = radius
+                self.cw = card_width
+                self.lp = lp; self.rp = rp; self.tp = tp; self.bp = bp
+            def wrap(self, availWidth, availHeight):
+                iw = self.cw - self.lp - self.rp
+                w, h = self.inner.wrap(iw, availHeight)
+                self._h = h + self.tp + self.bp
+                return (self.cw, self._h)
+            def draw(self):
+                self.canv.saveState()
+                self.canv.setFillColor(self.bg)
+                self.canv.setStrokeColor(self.border)
+                self.canv.setLineWidth(2)
+                self.canv.roundRect(0, 0, self.cw, self._h, self.radius, fill=1, stroke=1)
+                self.canv.restoreState()
+                self.inner.drawOn(self.canv, self.lp, self.bp)
+
+        class PillFlowable(Flowable):
+            def __init__(self, text, txt_clr, bg_clr, w=30*mm, h=20, radius=20):
+                Flowable.__init__(self)
+                self.text = text; self.txt_clr = txt_clr; self.bg = bg_clr
+                self.w = w; self.h = h; self.r = radius
+            def wrap(self, availWidth, availHeight):
+                return (self.w, self.h)
+            def draw(self):
+                self.canv.saveState()
+                self.canv.setFillColor(self.bg)
+                self.canv.setStrokeColor(self.bg)
+                self.canv.setLineWidth(1)
+                self.canv.roundRect(0, 0, self.w, self.h, self.r, fill=1, stroke=1)
+                self.canv.restoreState()
+                self.canv.saveState()
+                self.canv.setFont(FB, 9)
+                self.canv.setFillColor(self.txt_clr)
+                tw = self.canv.stringWidth(self.text, FB, 9)
+                self.canv.drawString((self.w - tw) / 2, (self.h - 9) / 2 + 1, self.text)
+                self.canv.restoreState()
+
+        class BadgeFlowable(Flowable):
+            def __init__(self, text, txt_clr, bg_clr, bdr_clr, w=35*mm, h=22, radius=20):
+                Flowable.__init__(self)
+                self.text = text; self.txt_clr = txt_clr; self.bg = bg_clr
+                self.bdr = bdr_clr; self.w = w; self.h = h; self.r = radius
+            def wrap(self, availWidth, availHeight):
+                return (self.w, self.h)
+            def draw(self):
+                self.canv.saveState()
+                self.canv.setFillColor(self.bg)
+                self.canv.setStrokeColor(self.bdr)
+                self.canv.setLineWidth(1)
+                self.canv.roundRect(0, 0, self.w, self.h, self.r, fill=1, stroke=1)
+                self.canv.restoreState()
+                self.canv.saveState()
+                self.canv.setFont(FB, 9)
+                self.canv.setFillColor(self.txt_clr)
+                tw = self.canv.stringWidth(self.text, FB, 9)
+                self.canv.drawString((self.w - tw) / 2, (self.h - 9) / 2 + 1, self.text)
+                self.canv.restoreState()
 
         def draw_bg(canvas, doc):
             canvas.saveState()
@@ -786,124 +942,97 @@ def generate_pdf():
             canvas.setFont(F, 6.5)
             canvas.setFillColor(TXT3)
             canvas.drawString(14*mm, 6*mm, "SR & BGNR College Tracker")
-            canvas.drawRightString(A4[0] - 14*mm, 6*mm, f"Page {canvas.getPageNumber()}")
+            canvas.drawRightString(A4[0]-14*mm, 6*mm, f"Page {canvas.getPageNumber()}")
             canvas.restoreState()
 
-        elements = []
+        els = []
 
-        hdr = Table(
-            [[Paragraph(time_str, S(7, "#4a3540")),
-              Paragraph("SR & BGNR College Tracker", S(7, "#4a3540", TA_RIGHT))]],
-            colWidths=[pw * 0.5, pw * 0.5]
-        )
-        hdr.setStyle(TableStyle([
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("TOPPADDING", (0, 0), (-1, -1), 0),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-        ]))
-        elements.append(hdr)
-        elements.append(Spacer(1, 3*mm))
+        hdr = Table([[Paragraph(time_str, S(7, DIM)),
+                       Paragraph("SR & BGNR College Tracker", S(7, DIM, TA_RIGHT))]],
+                     colWidths=[pw*0.5, pw*0.5])
+        hdr.setStyle(TableStyle([("VALIGN",(0,0),(-1,-1),"MIDDLE"),
+            ("TOPPADDING",(0,0),(-1,-1),0),("BOTTOMPADDING",(0,0),(-1,-1),0)]))
+        els.append(hdr)
+        els.append(Spacer(1, 3*mm))
 
-        elements.append(Paragraph("SR & BGNR College", S(16, ACCENT, TA_CENTER, bold=True)))
-        elements.append(Paragraph("Academic Report", S(11, TXT2, TA_CENTER)))
-        elements.append(Spacer(1, 2*mm))
-        elements.append(Paragraph(f"Registration No: {regd_no}", S(8, TXT2, TA_CENTER)))
-        elements.append(Paragraph(f"Generated: {date_str}", S(7, TXT3, TA_CENTER)))
-        elements.append(Spacer(1, 5*mm))
+        els.append(Paragraph("SR & BGNR College", S(16, ACCENT, TA_CENTER, bold=True)))
+        els.append(Paragraph("Academic Report", S(11, TXT2, TA_CENTER)))
+        els.append(Spacer(1, 2*mm))
+        els.append(Paragraph(f"Registration No: {regd_no}", S(8, TXT2, TA_CENTER)))
+        els.append(Paragraph(f"Generated: {date_str}", S(7, TXT3, TA_CENTER)))
+        els.append(Spacer(1, 5*mm))
 
         stat_data = [
-            [Paragraph(str(regd_no), S(12, GOLD, TA_CENTER, bold=True)),
-             Paragraph(str(total_subs), S(12, ACCENT, TA_CENTER, bold=True)),
-             Paragraph(str(total_passed), S(12, GREEN, TA_CENTER, bold=True)),
-             Paragraph(str(total_arrears), S(12, RED, TA_CENTER, bold=True))],
-            [Paragraph("Registration No", S(6, "#4a3540", TA_CENTER)),
-             Paragraph("Total Subjects", S(6, "#4a3540", TA_CENTER)),
-             Paragraph("Passed", S(6, "#4a3540", TA_CENTER)),
-             Paragraph("Pending Arrears", S(6, "#4a3540", TA_CENTER))],
+            [Paragraph(str(regd_no), S(22, GOLD, TA_CENTER, bold=True)),
+             Paragraph(str(total_subs), S(22, ACCENT, TA_CENTER, bold=True)),
+             Paragraph(str(total_passed), S(22, GREEN, TA_CENTER, bold=True)),
+             Paragraph(str(total_arrears), S(22, RED, TA_CENTER, bold=True))],
+            [Paragraph("Regd No", S(9, TXT3, TA_CENTER)),
+             Paragraph("Subjects", S(9, TXT3, TA_CENTER)),
+             Paragraph("Passed", S(9, TXT3, TA_CENTER)),
+             Paragraph("Arrears", S(9, TXT3, TA_CENTER))],
         ]
-        stat_tbl = Table(stat_data, colWidths=[pw * 0.25] * 4, rowHeights=[26, 12])
-        stat_tbl.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, -1), CARD),
-            ("BOX", (0, 0), (-1, -1), 0.5, BORDER),
-            ("INNERGRID", (0, 0), (-1, -1), 0.5, BORDER),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("TOPPADDING", (0, 0), (-1, 0), 7),
-            ("BOTTOMPADDING", (0, 1), (-1, 1), 4),
+        stat_inner = Table(stat_data, colWidths=[(pw - 33)*0.25]*4, rowHeights=[32, 14])
+        stat_inner.setStyle(TableStyle([
+            ("LINEAFTER", (0,0), (0,-1), 0.5, colors.HexColor("#2a1a20")),
+            ("LINEAFTER", (1,0), (1,-1), 0.5, colors.HexColor("#2a1a20")),
+            ("LINEAFTER", (2,0), (2,-1), 0.5, colors.HexColor("#2a1a20")),
+            ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
         ]))
-        elements.append(stat_tbl)
-        elements.append(Spacer(1, 5*mm))
+        els.append(CardFlowable(stat_inner, pw, CARD, lp=16.5, rp=16.5, tp=8, bp=6))
+        els.append(Spacer(1, 5*mm))
 
-        for sem_num, sd in sem_data_list:
+        inner_w = pw - 33
+        cw = [25, inner_w - 48 - 48 - 85 - 25, 48, 48, 85]
+
+        for sem_num, sd in sem_list:
             if sd is None:
-                empty_tbl = Table(
-                    [[Paragraph(f"Semester {sem_num}", S(9, TXT3, bold=True)),
-                      Paragraph("No Data Yet", S(8, "#3a2a30", TA_RIGHT))]],
-                    colWidths=[pw * 0.5, pw * 0.5]
-                )
-                empty_tbl.setStyle(TableStyle([
-                    ("BACKGROUND", (0, 0), (-1, -1), CARD2),
-                    ("BOX", (0, 0), (-1, -1), 0.4, BORDER),
-                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                    ("TOPPADDING", (0, 0), (-1, -1), 7),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
-                    ("LEFTPADDING", (0, 0), (0, 0), 10),
+                empty_inner = Table(
+                    [[Paragraph(f"Semester {sem_num}", S(12, TXT3, bold=True)),
+                      Paragraph("No Data Yet", S(10, DIM, TA_RIGHT))]],
+                    colWidths=[(pw-44)*0.5, (pw-44)*0.5])
+                empty_inner.setStyle(TableStyle([
+                    ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+                    ("TOPPADDING", (0,0), (-1,-1), 0),
+                    ("BOTTOMPADDING", (0,0), (-1,-1), 0),
                 ]))
-                elements.append(empty_tbl)
-                elements.append(Spacer(1, 2*mm))
+                els.append(CardFlowable(empty_inner, pw, colors.HexColor("#141228"),
+                                         radius=8, lp=22, rp=22, tp=10, bp=10))
+                els.append(Spacer(1, 2*mm))
                 continue
 
             subjects = sd.get("subjects", [])
-            arrears = sum(1 for s in subjects if s.get("status") == "fail")
+            arrears = sum(1 for s in subjects if s["status"] == "fail")
             exam_name = sd.get("exam", "")
-            has_arrear = arrears > 0
+            has_arr = arrears > 0
+            arr_clr = RED if has_arr else GREEN
+            badge_t = f"{arrears} Arrear{'s' if arrears!=1 else ''}" if has_arr else "All cleared"
+            badge_b = FAIL_BG if has_arr else PASS_BG
+            card_bdr = arr_clr
 
-            card_border = FAIL_LEFT if has_arrear else BORDER
-            arrear_color = RED if has_arrear else GREEN
-            if has_arrear:
-                badge_text = f"{arrears} Arrear{'s' if arrears != 1 else ''}"
-                badge_bg = FAIL_ROW
-            else:
-                badge_text = "All cleared"
-                badge_bg = PASS_ROW
+            badge = BadgeFlowable(badge_t, arr_clr, badge_b, arr_clr)
 
-            badge_tbl = Table(
-                [[Paragraph(badge_text, S(7, arrear_color, TA_CENTER, bold=True))]],
-                colWidths=[35*mm], rowHeights=[14]
-            )
-            badge_tbl.setStyle(TableStyle([
-                ("BACKGROUND", (0, 0), (-1, -1), badge_bg),
-                ("BOX", (0, 0), (-1, -1), 0.5, arrear_color),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("TOPPADDING", (0, 0), (-1, -1), 1),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
+            sem_rows = []
+
+            header_inner = Table(
+                [[Paragraph(f"Semester {sem_num}", S(12, TXT, bold=True)),
+                  Paragraph(f"{exam_name}  \u00b7  {len(subjects)} subjects", S(10, TXT3)),
+                  badge]],
+                colWidths=[inner_w*0.28, inner_w*0.47, inner_w*0.25])
+            header_inner.setStyle(TableStyle([
+                ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+                ("TOPPADDING", (0,0), (-1,-1), 0),
+                ("BOTTOMPADDING", (0,0), (-1,-1), 0),
             ]))
+            sem_rows.append([header_inner, None, None, None, None])
 
-            sem_hdr = Table(
-                [[Paragraph(f"Semester {sem_num}", S(10, TXT, bold=True)),
-                  Paragraph(f"{exam_name}  \u00b7  {len(subjects)} subjects", S(7.5, TXT3)),
-                  badge_tbl]],
-                colWidths=[pw * 0.28, pw * 0.47, pw * 0.25]
-            )
-            sem_hdr.setStyle(TableStyle([
-                ("BACKGROUND", (0, 0), (-1, -1), CARD),
-                ("BOX", (0, 0), (-1, -1), 0.5, card_border),
-                ("LINEBELOW", (0, 0), (-1, 0), 1.2, ACCENT),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("TOPPADDING", (0, 0), (-1, -1), 8),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-                ("LEFTPADDING", (0, 0), (0, 0), 10),
-                ("RIGHTPADDING", (-1, -1), (-1, -1), 10),
-            ]))
-            elements.append(sem_hdr)
-            elements.append(Spacer(1, 1*mm))
-
-            tbl_data = [[
-                Paragraph("#", S(6.5, "#5a4a50", TA_CENTER, bold=True)),
-                Paragraph("SUBJECT", S(6.5, "#5a4a50", bold=True)),
-                Paragraph("GRADE", S(6.5, "#5a4a50", TA_CENTER, bold=True)),
-                Paragraph("CREDITS", S(6.5, "#5a4a50", TA_CENTER, bold=True)),
-                Paragraph("STATUS", S(6.5, "#5a4a50", TA_CENTER, bold=True)),
-            ]]
+            sem_rows.append([
+                Paragraph("#", S(9, TXT3, TA_CENTER, bold=True)),
+                Paragraph("SUBJECT", S(9, TXT3, bold=True)),
+                Paragraph("GRADE", S(9, TXT3, TA_CENTER, bold=True)),
+                Paragraph("CREDITS", S(9, TXT3, TA_CENTER, bold=True)),
+                Paragraph("STATUS", S(9, TXT3, TA_CENTER, bold=True)),
+            ])
 
             row_styles = []
             for i, s in enumerate(subjects, 1):
@@ -914,126 +1043,86 @@ def generate_pdf():
                 is_pass = s.get("status") == "pass"
 
                 if sp:
-                    row_bg = SUPP_ROW
-                    left_clr = SUPP_LEFT
-                    status_pill = Table(
-                        [[Paragraph(f"Supply {sp}", S(6, GOLD, TA_CENTER, bold=True))]],
-                        colWidths=[28*mm], rowHeights=[11]
-                    )
-                    status_pill.setStyle(TableStyle([
-                        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#2a2208")),
-                        ("BOX", (0, 0), (-1, -1), 0.4, GOLD),
-                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                        ("TOPPADDING", (0, 0), (-1, -1), 1),
-                        ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
-                    ]))
+                    rb, lc, pc, pb = SUP_BG, GOLD, GOLD, PILL_S
+                    p = PillFlowable(f"Supply {sp}", GOLD, pb)
                 elif is_pass:
-                    row_bg = PASS_ROW
-                    left_clr = PASS_LEFT
-                    status_pill = Table(
-                        [[Paragraph("Pass", S(6, GREEN, TA_CENTER, bold=True))]],
-                        colWidths=[28*mm], rowHeights=[11]
-                    )
-                    status_pill.setStyle(TableStyle([
-                        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#0a2e1a")),
-                        ("BOX", (0, 0), (-1, -1), 0.4, GREEN),
-                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                        ("TOPPADDING", (0, 0), (-1, -1), 1),
-                        ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
-                    ]))
+                    rb, lc, pc, pb = PASS_BG, GREEN, GREEN, PILL_P
+                    p = PillFlowable("Pass", GREEN, pb)
                 else:
-                    row_bg = FAIL_ROW
-                    left_clr = FAIL_LEFT
-                    status_pill = Table(
-                        [[Paragraph("Arrear", S(6, RED, TA_CENTER, bold=True))]],
-                        colWidths=[28*mm], rowHeights=[11]
-                    )
-                    status_pill.setStyle(TableStyle([
-                        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#2e0c0c")),
-                        ("BOX", (0, 0), (-1, -1), 0.4, RED),
-                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                        ("TOPPADDING", (0, 0), (-1, -1), 1),
-                        ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
-                    ]))
+                    rb, lc, pc, pb = FAIL_BG, RED, RED, PILL_F
+                    p = PillFlowable("Arrear", RED, pb)
 
-                grade_clr = GREEN if is_pass else RED
-
-                tbl_data.append([
-                    Paragraph(str(i), S(7.5, TXT3, TA_CENTER)),
-                    Paragraph(subj, S(7.5, TXT2)),
-                    Paragraph(grade, S(7.5, grade_clr, TA_CENTER, bold=True)),
-                    Paragraph(str(creds), S(7.5, TXT3, TA_CENTER)),
-                    status_pill,
+                sem_rows.append([
+                    Paragraph(str(i), S(10.5, TXT3, TA_CENTER)),
+                    Paragraph(subj, S(10.5, TXT2)),
+                    Paragraph(grade, S(10.5, pc, TA_CENTER, bold=True)),
+                    Paragraph(str(creds), S(10.5, TXT3, TA_CENTER)),
+                    p,
                 ])
-                row_styles.append(("BACKGROUND", (0, i), (-1, i), row_bg))
-                row_styles.append(("LINEBEFORE", (0, i), (0, i), 3, left_clr))
+                ri = len(sem_rows) - 1
+                row_styles.append(("BACKGROUND", (0,ri), (-1,ri), rb))
+                row_styles.append(("LINEBEFORE", (0,ri), (0,ri), 3, lc))
 
-            col_w = [9*mm, pw - 73*mm, 17*mm, 17*mm, 30*mm]
-            tbl = Table(tbl_data, colWidths=col_w, repeatRows=1)
-            base_style = [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1e1028")),
-                ("TEXTCOLOR", (0, 0), (-1, 0), "#5a4a50"),
-                ("FONTNAME", (0, 0), (-1, 0), FB),
-                ("LINEBELOW", (0, 0), (-1, 0), 0.8, ACCENT),
-                ("TOPPADDING", (0, 0), (-1, 0), 5),
-                ("BOTTOMPADDING", (0, 0), (-1, 0), 5),
-                ("GRID", (0, 0), (-1, -1), 0.2, BORDER),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("TOPPADDING", (0, 1), (-1, -1), 4),
-                ("BOTTOMPADDING", (0, 1), (-1, -1), 4),
+            internal_s = [
+                ("SPAN", (0,0), (-1,0)),
+                ("BACKGROUND", (0,1), (-1,1), colors.HexColor("#1e1028")),
+                ("LINEBELOW", (0,1), (-1,1), 1, ACCENT),
+                ("LINEBELOW", (0,0), (-1,0), 0.5, colors.HexColor("#1a1218")),
+                ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+                ("TOPPADDING", (0,0), (-1,0), 4),
+                ("BOTTOMPADDING", (0,0), (-1,0), 4),
+                ("TOPPADDING", (0,1), (-1,1), 6),
+                ("BOTTOMPADDING", (0,1), (-1,1), 6),
+                ("LEFTPADDING", (0,1), (-1,1), 0),
+                ("RIGHTPADDING", (0,1), (-1,1), 0),
             ]
-            tbl.setStyle(TableStyle(base_style + row_styles))
-            elements.append(tbl)
+            for ri in range(2, len(sem_rows)):
+                internal_s.append(("TOPPADDING", (0,ri), (-1,ri), 5))
+                internal_s.append(("BOTTOMPADDING", (0,ri), (-1,ri), 5))
+
+            internal_tbl = Table(sem_rows, colWidths=cw, repeatRows=1)
+            internal_tbl.setStyle(TableStyle(internal_s + row_styles))
+
+            sem_card = CardFlowable(internal_tbl, pw, CARD, radius=8,
+                                     lp=16.5, rp=16.5, tp=15, bp=15)
+            sem_block = [sem_card]
 
             supplies = sd.get("supplies", [])
             if supplies:
-                elements.append(Spacer(1, 2*mm))
-                sup_hdr = Table(
-                    [[Paragraph("Supply Attempts", S(7.5, GOLD, bold=True))]],
-                    colWidths=[pw]
-                )
-                sup_hdr.setStyle(TableStyle([
-                    ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#1a1608")),
-                    ("BOX", (0, 0), (-1, -1), 0.4, colors.HexColor("#3a3010")),
-                    ("TOPPADDING", (0, 0), (-1, -1), 5),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 8),
-                ]))
-                elements.append(sup_hdr)
-
+                srows = [[Paragraph("Supply Attempts", S(10, GOLD, bold=True)), "", ""]]
                 for sp in supplies:
-                    sp_exam = sp.get("exam", "")
-                    sp_subjects = sp.get("subjects", [])
-                    sp_count = len(sp_subjects)
-                    elements.append(Spacer(1, 1*mm))
+                    srows.append([
+                        Paragraph(sp.get("exam",""), S(10, TXT2, bold=True)),
+                        Paragraph(f"{len(sp.get('subjects',[]))} subjects", S(10, TXT3, TA_CENTER)),
+                        Paragraph("Attempted", S(10, GOLD, TA_CENTER, bold=True))])
+                supply_tbl = Table(srows, colWidths=[inner_w*0.4, inner_w*0.3, inner_w*0.3])
+                ss = [
+                    ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#1a1608")),
+                    ("SPAN", (0,0), (-1,0)),
+                    ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+                    ("TOPPADDING", (0,0), (-1,0), 5),
+                    ("BOTTOMPADDING", (0,0), (-1,0), 5),
+                    ("LEFTPADDING", (0,0), (0,0), 10),
+                ]
+                for ri in range(1, len(srows)):
+                    ss.append(("BACKGROUND", (0,ri), (-1,ri), colors.HexColor("#141228")))
+                    ss.append(("TOPPADDING", (0,ri), (-1,ri), 5))
+                    ss.append(("BOTTOMPADDING", (0,ri), (-1,ri), 5))
+                supply_tbl.setStyle(TableStyle(ss))
+                supply_card = CardFlowable(supply_tbl, pw, colors.HexColor("#1a1608"),
+                                            radius=8, lp=16.5, rp=16.5, tp=10, bp=10)
+                sem_block.append(Spacer(1, 3*mm))
+                sem_block.append(supply_card)
 
-                    sp_rows = [[
-                        Paragraph(f"{sp_exam}", S(7, TXT2, bold=True)),
-                        Paragraph(f"{sp_count} subjects", S(7, TXT3, TA_CENTER)),
-                        Paragraph("Attempted", S(7, GOLD, TA_CENTER, bold=True)),
-                    ]]
-                    sp_tbl = Table(sp_rows, colWidths=[pw * 0.4, pw * 0.3, pw * 0.3])
-                    sp_tbl.setStyle(TableStyle([
-                        ("BACKGROUND", (0, 0), (-1, -1), CARD2),
-                        ("BOX", (0, 0), (-1, -1), 0.3, BORDER),
-                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                        ("TOPPADDING", (0, 0), (-1, -1), 4),
-                        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                        ("LEFTPADDING", (0, 0), (0, 0), 8),
-                    ]))
-                    elements.append(sp_tbl)
+            els.append(KeepTogether(sem_block))
+            els.append(Spacer(1, 3*mm))
 
-            elements.append(Spacer(1, 3*mm))
-
-        doc.build(elements, onFirstPage=draw_bg, onLaterPages=draw_bg)
+        doc.build(els, onFirstPage=draw_bg, onLaterPages=draw_bg)
         buf.seek(0)
 
         filename = f"SR-BGNR-{regd_no}.pdf"
-        return Response(
-            buf.getvalue(),
-            mimetype="application/pdf",
-            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
-        )
+        return Response(buf.getvalue(), mimetype="application/pdf",
+                        headers={"Content-Disposition": f'attachment; filename="{filename}"'})
     except Exception as e:
         logger.exception("generate-pdf error")
         return jsonify({"error": str(e)}), 500

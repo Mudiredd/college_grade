@@ -14,3 +14,4 @@ beautifulsoup4
 lxml
 pdfplumber
 email-validator
+authlib

@@ -117,6 +117,15 @@
     }
     .plan-card.selected .plan-cta { background:linear-gradient(135deg,#d4405e,#96263e); color:#fff; }
     .plan-cta:hover { opacity:.85; }
+    .plan-card.current { border-color:#00e67644; cursor:default; transform:none; box-shadow:none; opacity:.7; }
+    .plan-card.current:hover { border-color:#00e67644; transform:none; box-shadow:none; }
+    .plan-card .plan-current-badge { display:none; background:rgba(0,230,118,.12); color:#00e676; font-size:.7rem; font-weight:700; padding:2px 10px; border-radius:20px; margin-left:auto; }
+    .plan-card.current .plan-current-badge { display:inline-block; }
+    .plan-card .plan-upgrade-cta { display:none; }
+    .plan-card.current .plan-cta { display:none; }
+    .plan-card:not(.current) .plan-upgrade-cta { display:inline-block; }
+    .upgrade-banner { background:rgba(0,230,118,.06); border:1px solid rgba(0,230,118,.15); border-radius:12px; padding:12px 16px; margin-bottom:24px; display:flex; align-items:center; gap:10px; font-size:.85rem; }
+    .upgrade-banner strong { color:#00e676; }
 
     /* ── UPI Pay Section ── */
     .pay-section {
@@ -321,6 +330,15 @@
     </div>
   </div>
 
+  {% if current_plan %}
+  <!-- UPGRADE BANNER -->
+  <div class="upgrade-banner">
+    <span>⬆</span>
+    <span>You're on the <strong>{{ current_plan|capitalize }}</strong> plan. Select a different plan below to upgrade.</span>
+  </div>
+  {% endif %}
+
+  {% if not current_plan %}
   <!-- FREE TRIAL -->
   <div class="free-trial">
     <div class="free-trial-icon">🎓</div>
@@ -335,24 +353,25 @@
       </div>
     </div>
   </div>
+  {% endif %}
 
   <!-- ===== STEP 1: CHOOSE PLAN ===== -->
   <div class="step-panel active" id="step1">
     <div class="plans">
-      <div class="plan-card" id="card-basic" onclick="selectPlan('basic')">
-        <div class="plan-name">📋 Basic</div>
-        <div class="plan-price">₹15 <span>one-time</span></div>
+      <div class="plan-card {{ 'current' if current_plan == 'basic' else '' }} {{ 'selected' if selected_plan == 'basic' else '' }}" id="card-basic" onclick="selectPlan('basic')">
+        <div class="plan-name">📋 Basic <span class="plan-current-badge">✅ Current Plan</span></div>
+        <div class="plan-price">₹15 <span>1 day</span></div>
         <div class="plan-desc">
-          <span class="check">✅</span> 1 search total<br>
+          <span class="check">✅</span> 3 searches (1 day)<br>
           <span class="check">✅</span> All 8 semesters<br>
           <span class="check">✅</span> Supply results<br>
           <span class="check">✅</span> PDF download<br>
           <span class="cross">—</span> Queue priority: medium
         </div>
-        <button class="plan-cta">Choose Basic</button>
+        <button class="plan-cta">{{ '⬆ Upgrade' if current_plan and current_plan != 'basic' else 'Choose Basic' }}</button>
       </div>
-      <div class="plan-card" id="card-monthly" onclick="selectPlan('monthly')">
-        <div class="plan-name">📅 Monthly</div>
+      <div class="plan-card {{ 'current' if current_plan == 'monthly' else '' }} {{ 'selected' if selected_plan == 'monthly' else '' }}" id="card-monthly" onclick="selectPlan('monthly')">
+        <div class="plan-name">📅 Monthly <span class="plan-current-badge">✅ Current Plan</span></div>
         <div class="plan-price">₹49 <span>/ month</span></div>
         <div class="plan-desc">
           <span class="check">✅</span> 4 searches per day<br>
@@ -361,11 +380,11 @@
           <span class="check">✅</span> PDF download<br>
           <span class="check">✅</span> Higher queue priority
         </div>
-        <button class="plan-cta">Choose Monthly</button>
+        <button class="plan-cta">{{ '⬆ Upgrade' if current_plan and current_plan != 'monthly' else 'Choose Monthly' }}</button>
       </div>
-      <div class="plan-card selected" id="card-yearly" onclick="selectPlan('yearly')">
+      <div class="plan-card {{ 'current' if current_plan == 'yearly' else '' }} {{ 'selected' if selected_plan == 'yearly' else '' }}" id="card-yearly" onclick="selectPlan('yearly')">
         <div class="plan-badge">⭐ Best Value</div>
-        <div class="plan-name">📦 Yearly</div>
+        <div class="plan-name">📦 Yearly <span class="plan-current-badge">✅ Current Plan</span></div>
         <div class="plan-price">₹129 <span>/ year</span></div>
         <div class="plan-desc">
           <span class="check">✅</span> 8 searches per day<br>
@@ -374,10 +393,10 @@
           <span class="check">✅</span> PDF download<br>
           <span class="check">✅</span> Highest queue priority
         </div>
-        <button class="plan-cta">Choose Yearly</button>
+        <button class="plan-cta">{{ '⬆ Upgrade' if current_plan and current_plan != 'yearly' else 'Choose Yearly' }}</button>
       </div>
     </div>
-    <button class="btn-primary" id="continueStep1" onclick="goToStep(2)" disabled>Select a Plan</button>
+    <button class="btn-primary" id="continueStep1" onclick="goToStep(2)" disabled>{% if current_plan %}Select a plan to upgrade{% else %}Select a Plan{% endif %}</button>
   </div>
 
   <!-- ===== STEP 2: PAY VIA UPI ===== -->
@@ -440,10 +459,10 @@
       <h3>📋 Step 3: Submit Payment</h3>
       <p class="note">Enter the UTR / Transaction ID from your UPI payment receipt.</p>
       <form method="POST" action="{{ url_for('submit_payment') }}" id="utrForm">
-        <input type="hidden" name="plan" id="planInput" value="yearly" />
+        <input type="hidden" name="plan" id="planInput" value="{{ selected_plan }}" />
         <div class="form-group">
           <label>Selected Plan</label>
-          <input type="text" id="planDisplay" value="📦 Yearly — ₹129" readonly style="color:#d4405e; cursor:default;" />
+          <input type="text" id="planDisplay" value="{{ {'basic':'📋 Basic — ₹15','monthly':'📅 Monthly — ₹49','yearly':'📦 Yearly — ₹129'}[selected_plan] }}" readonly style="color:#d4405e; cursor:default;" />
         </div>
         <div class="form-group">
           <label>UTR / Transaction ID</label>
@@ -477,7 +496,8 @@
   const SHORT = { basic:'📋 Basic', monthly:'📅 Monthly', yearly:'📦 Yearly' };
 
   let currentStep = 1;
-  let selectedPlan = 'yearly';
+  let selectedPlan = '{{ selected_plan }}';
+  let currentPlan = '{{ current_plan or '' }}';
 
   // ── Generate QR ──
   function generateQR() {
@@ -492,6 +512,7 @@
 
   // ── Plan Selection ──
   function selectPlan(plan) {
+    if (currentPlan && plan === currentPlan) return;
     selectedPlan = plan;
     document.querySelectorAll('.plan-card').forEach(c => c.classList.remove('selected'));
     document.getElementById('card-' + plan).classList.add('selected');
@@ -577,6 +598,9 @@
       setTimeout(() => btn.textContent = 'Copy', 2000);
     });
   }
+
+  // Init from server-side plan
+  selectPlan(selectedPlan);
 </script>
 </body>
 </html>

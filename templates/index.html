@@ -31,6 +31,13 @@
       min-height:100vh;
     }
 
+    /* Flash messages */
+    .flash-container{position:fixed;top:72px;left:50%;transform:translateX(-50%);z-index:999;width:90%;max-width:480px;pointer-events:none;}
+    .flash-msg{padding:10px 16px;border-radius:10px;font-size:.83rem;margin-bottom:6px;text-align:center;animation:fadeInUp .3s;pointer-events:auto;backdrop-filter:blur(8px);}
+    .flash-success{background:rgba(0,230,118,.12);color:#00e676;border:1px solid rgba(0,230,118,.25);}
+    .flash-error{background:rgba(255,82,82,.12);color:#ff5252;border:1px solid rgba(255,82,82,.25);}
+    .flash-info{background:rgba(212,64,94,.12);color:#d4405e;border:1px solid rgba(212,64,94,.25);}
+
     a{
       text-decoration:none;
     }
@@ -982,11 +989,112 @@
       .skeleton-card{padding:16px;}
     }
 
+    /* Mobile responsive polish */
+    .subjects-table { -webkit-overflow-scrolling: touch; }
+    .btn, .semester-card, .summary-card, .search-row input, .search-row .btn { touch-action: manipulation; }
+    .topbar-nav { gap: 4px; }
+    @supports(padding:max(0px)) {
+      .hero, .dashboard, .topbar { padding-left: max(20px, env(safe-area-inset-left)); padding-right: max(20px, env(safe-area-inset-right)); }
+    }
+
+    /* Rate limit progress bar */
+    .search-limit-wrap { display:inline-flex; align-items:center; gap:6px; }
+    .limit-bar-bg { width:40px; height:4px; background:rgba(255,255,255,.08); border-radius:4px; overflow:hidden; display:none; }
+    .limit-bar-fill { height:100%; border-radius:4px; background:linear-gradient(90deg,#d4405e,#96263e); transition:width .3s; }
+    .searches-badge.low { cursor:pointer; }
+    .btn:disabled { opacity:.35; cursor:not-allowed; }
+
+    /* Subscription upsell modal */
+    .upsell-overlay {
+      display:none; position:fixed; inset:0; z-index:999;
+      background:rgba(0,0,0,.7); backdrop-filter:blur(6px);
+      align-items:center; justify-content:center; padding:20px;
+    }
+    .upsell-overlay.open { display:flex; }
+    .upsell-modal {
+      background:#1c0f13; border:1px solid #ffffff11; border-radius:20px;
+      padding:32px 28px; max-width:480px; width:100%;
+      animation:fadeInUp .4s ease; max-height:90vh; overflow-y:auto;
+    }
+    .upsell-modal h2 { text-align:center; font-size:1.2rem; margin-bottom:4px; }
+    .upsell-modal h2 span { color:#d4405e; }
+    .upsell-modal .sub { text-align:center; color:#a07878; font-size:.85rem; margin-bottom:20px; }
+    .upsell-plans { display:flex; flex-direction:column; gap:10px; }
+    .upsell-plan {
+      background:rgba(26,26,46,.7); border:1px solid rgba(255,255,255,.06);
+      border-radius:14px; padding:16px 18px; cursor:pointer;
+      transition:all .2s; text-decoration:none; color:#fff;
+      display:flex; justify-content:space-between; align-items:center;
+    }
+    .upsell-plan:hover { border-color:#d4405e44; background:rgba(212,64,94,.08); transform:translateY(-1px); }
+    .upsell-plan .pp-name { font-weight:700; font-size:.95rem; }
+    .upsell-plan .pp-price { color:#ffd740; font-weight:700; font-size:1.05rem; }
+    .upsell-plan .pp-desc { color:#a07878; font-size:.78rem; margin-top:2px; }
+    .upsell-close {
+      display:block; margin-top:16px; width:100%; padding:10px;
+      background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.11);
+      border-radius:10px; color:#aaa; font-size:.85rem; font-weight:600;
+      cursor:pointer; transition:background .2s; font-family:inherit;
+    }
+    .upsell-close:hover { background:rgba(255,255,255,.12); color:#fff; }
+    @media(max-width:480px){
+      .upsell-modal { padding:24px 18px; }
+      .upsell-plan { padding:14px; flex-wrap:wrap; gap:4px; }
+    }
   </style>
 
 </head>
 
 <body>
+
+<!-- =========================
+     FLASH MESSAGES
+========================= -->
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div class="flash-container">
+  {% for category, message in messages %}
+  <div class="flash-msg flash-{{ category }}">{{ message }}</div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+
+<!-- =========================
+     UPSELL MODAL
+========================= -->
+
+<div class="upsell-overlay" id="upsellOverlay">
+  <div class="upsell-modal">
+    <h2>🎓 <span>Upgrade</span> Your Plan</h2>
+    <p class="sub">You've used all your free searches. Choose a plan to continue tracking.</p>
+    <div class="upsell-plans">
+      <a href="{{ url_for('subscribe') }}?plan=basic" class="upsell-plan">
+        <div>
+          <div class="pp-name">📋 Basic</div>
+          <div class="pp-desc">1 day &middot; 3 searches/day</div>
+        </div>
+        <div class="pp-price">₹15</div>
+      </a>
+      <a href="{{ url_for('subscribe') }}?plan=monthly" class="upsell-plan">
+        <div>
+          <div class="pp-name">📅 Monthly</div>
+          <div class="pp-desc">30 days &middot; 4 searches/day</div>
+        </div>
+        <div class="pp-price">₹49</div>
+      </a>
+      <a href="{{ url_for('subscribe') }}?plan=yearly" class="upsell-plan">
+        <div>
+          <div class="pp-name">📦 Yearly</div>
+          <div class="pp-desc">365 days &middot; 8 searches/day</div>
+        </div>
+        <div class="pp-price">₹129</div>
+      </a>
+    </div>
+    <button class="upsell-close" onclick="closeUpsell()">Maybe later</button>
+  </div>
+</div>
 
 <!-- =========================
      TOPBAR
@@ -1006,8 +1114,13 @@
       {{ user.name }}
     </span>
 
-    <span class="searches-badge {{ 'low' if searches_left == 0 else 'ok' }}">
-      {{ searches_left }} left
+    <span class="search-limit-wrap">
+      <span class="searches-badge {{ 'low' if searches_left == 0 else 'ok' }}" id="searchesBadge" onclick="{% if searches_left == 0 and plan == 'free' %}showUpsell(){% endif %}">
+        {{ searches_left }} left
+      </span>
+      <span class="limit-bar-bg" id="limitBarBg" style="display:inline-block;">
+        <span class="limit-bar-fill" id="limitBarFill" style="width:{{ usage_pct }}%"></span>
+      </span>
     </span>
 
     <a href="{{ url_for('account') }}">Account</a>
@@ -1017,6 +1130,8 @@
     {% endif %}
 
     <a href="#downloads">Downloads</a>
+
+    <a href="{{ url_for('contact') }}">Contact</a>
 
     <a href="{{ url_for('auth.logout') }}">Logout</a>
 
@@ -1092,8 +1207,6 @@
       autoplay
     ></lottie-player>
   </div>
-
-  <div class="timeline" id="stepsContainer"></div>
 
 </div>
 
@@ -1173,7 +1286,7 @@ let elapsedInterval = null;
 let pollInterval = null;
 let isFree = {{ 'true' if plan == 'free' else 'false' }};
 let renderedSemesters = new Set();
-let lastMessage = '';
+
 
 /* =========================
    FETCH RESULTS (POLLING)
@@ -1263,39 +1376,17 @@ function startPolling(){
 
         const pos = state.queue_position || 1;
         document.getElementById("stepText").textContent = "⏳ Position in queue: #" + pos;
-        addStep("⏳ Position in queue: #" + pos);
 
       } else if(state.status === "running"){
 
         document.getElementById("stepText").textContent = state.message || "Running...";
 
-        if(state.progress !== undefined){
-          const pct = state.progress;
-          const pandaScanning = document.getElementById("pandaScanning");
-          if(pandaScanning) pandaScanning.style.left = pct + "%";
-          const fill = document.querySelector(".sb-fill");
-          if(fill) fill.style.width = pct + "%";
+        if(state.semester){
+          renderSemesterCard(state.semester.semester, state.semester.data);
         }
 
-        if(state.semester && !renderedSemesters.has(state.semester.semester)){
-          const sem = state.semester;
-          renderedSemesters.add(sem.semester);
-          allData[String(sem.semester)] = sem.data;
-          removeSkeletons();
-          renderDashboard(allData);
-
-          document.getElementById("loading").style.display = "none";
-          if(elapsedInterval){ clearInterval(elapsedInterval); elapsedInterval = null; }
-          document.getElementById("dashboard").style.display = "block";
-
-          scanningTarget = sem.semester + 1;
-          updateScanningBar("", 0, scanningTarget);
-        }
-
-        if(state.message && state.message !== lastMessage){
-          lastMessage = state.message;
-          addStep(state.message);
-        }
+        const pct = state.progress !== undefined ? state.progress : 5;
+        updateScanningBar(state.message || "Fetching results...", pct);
 
       } else if(state.status === "done"){
 
@@ -1312,8 +1403,6 @@ function startPolling(){
 
         if(!isFree){
           document.getElementById("downloadBtn").style.display = "inline-flex";
-        } else {
-          addStep("⬆️ Upgrade to download PDF");
         }
 
         renderDashboard(state.data);
@@ -1340,14 +1429,95 @@ function startPolling(){
       // ignore polling errors, keep retrying
     }
 
-  }, 1500);
+  }, 1000);
 }
 
 /* =========================
    RENDER DASHBOARD
 ========================= */
 
+function buildSemesterCard(sem, semData){
+  const hasArrear = semData.remaining_supplies > 0;
+  const supplyId = "supply-" + sem;
+  const arrearBadge = hasArrear
+    ? `<span class="arrear-badge danger">🔴 ${semData.remaining_supplies} Arrear${semData.remaining_supplies>1?"s":""}</span>`
+    : `<span class="arrear-badge success">✅ All cleared</span>`;
+
+  let html = `<div class="semester-card${hasArrear?' sem-has-arrear':''}">`;
+
+  html += `
+    <div class="sem-header">
+      <div class="sem-header-left">
+        <span class="sem-num">Semester ${sem}</span>
+        <span class="sem-meta">${semData.exam} · <span>${semData.subjects.length} subjects</span></span>
+      </div>
+      ${arrearBadge}
+    </div>
+  `;
+
+  html += `<table class="subjects-table"><tr><th>#</th><th>Subject</th><th>Grade</th><th>Credits</th><th>Status</th></tr>`;
+
+  semData.subjects.forEach((s,index)=>{
+    let rowClass, statusHtml;
+    if(s.supply_passed){
+      rowClass = "sem-supply-passed-row";
+      statusHtml = `<span class="status-pill supply">✅ Supply ${s.supply_passed}</span>`;
+    } else if(s.status === "pass"){
+      rowClass = "sem-pass-row";
+      statusHtml = `<span class="status-pill pass">✅ Pass</span>`;
+    } else {
+      rowClass = "sem-fail-row";
+      statusHtml = `<span class="status-pill fail">❌ Arrear</span>`;
+    }
+    html += `<tr class="${rowClass}"><td>${index+1}</td><td>${s.subject}</td><td>${s.grade}</td><td>${s.credits}</td><td>${statusHtml}</td></tr>`;
+  });
+
+  html += `</table>`;
+
+  if(semData.supply_history && semData.supply_history.length > 0){
+    html += `
+      <button class="supply-toggle" onclick="toggleSupply('${supplyId}')">
+        📋 Supply Attempts (${semData.supply_history.length}) <span class="arrow" id="arrow-${supplyId}">▶</span>
+      </button>
+      <div class="supply-body" id="${supplyId}">
+        <div class="supply-inner">
+          <table class="supply-table">
+            <tr><th>Exam</th><th>Subjects</th><th>Result</th></tr>
+    `;
+    semData.supply_history.forEach(sh => {
+      html += `<tr><td>${sh.exam}</td><td>${sh.subject_count}</td><td><span style="color:#ffd740;font-weight:600;">Attempted</span></td></tr>`;
+    });
+    html += `</table></div></div>`;
+  }
+
+  html += `</div>`;
+  return html;
+}
+
+function renderSemesterCard(sem, semData){
+  if(renderedSemesters.has(sem)) return;
+  renderedSemesters.add(sem);
+  const db = document.getElementById("dashboard");
+  const header = db.querySelector(".report-header");
+  if(!header){
+    const now = new Date();
+    const dateStr = now.toLocaleDateString("en-IN", {day:"2-digit", month:"short", year:"numeric"});
+    const h = document.createElement("div");
+    h.innerHTML = `
+      <div class="report-header">
+        <h1><span>SR & BGNR College</span> — Academic Report</h1>
+        <div class="report-meta">Reg: ${latestRegdNo} · Generated: ${dateStr}</div>
+      </div>
+      <div class="summary-grid"></div>
+    `;
+    db.insertBefore(h, db.firstChild);
+  }
+  db.insertAdjacentHTML("beforeend", buildSemesterCard(sem, semData));
+}
+
 function renderDashboard(data){
+
+  renderedSemesters.clear();
 
   let html = "";
   let totalSubjects = 0;
@@ -1393,61 +1563,7 @@ function renderDashboard(data){
   for(let sem=1; sem<=8; sem++){
     const semData = data[String(sem)];
     if(!semData || !semData.subjects || semData.subjects.length === 0) continue;
-
-    const hasArrear = semData.remaining_supplies > 0;
-    const supplyId = "supply-" + sem;
-    const arrearBadge = hasArrear
-      ? `<span class="arrear-badge danger">🔴 ${semData.remaining_supplies} Arrear${semData.remaining_supplies>1?"s":""}</span>`
-      : `<span class="arrear-badge success">✅ All cleared</span>`;
-
-    html += `<div class="semester-card${hasArrear?' sem-has-arrear':''}">`;
-
-    html += `
-      <div class="sem-header">
-        <div class="sem-header-left">
-          <span class="sem-num">Semester ${sem}</span>
-          <span class="sem-meta">${semData.exam} · <span>${semData.subjects.length} subjects</span></span>
-        </div>
-        ${arrearBadge}
-      </div>
-    `;
-
-    html += `<table class="subjects-table"><tr><th>#</th><th>Subject</th><th>Grade</th><th>Credits</th><th>Status</th></tr>`;
-
-    semData.subjects.forEach((s,index)=>{
-      let rowClass, statusHtml;
-      if(s.supply_passed){
-        rowClass = "sem-supply-passed-row";
-        statusHtml = `<span class="status-pill supply">✅ Supply ${s.supply_passed}</span>`;
-      } else if(s.status === "pass"){
-        rowClass = "sem-pass-row";
-        statusHtml = `<span class="status-pill pass">✅ Pass</span>`;
-      } else {
-        rowClass = "sem-fail-row";
-        statusHtml = `<span class="status-pill fail">❌ Arrear</span>`;
-      }
-      html += `<tr class="${rowClass}"><td>${index+1}</td><td>${s.subject}</td><td>${s.grade}</td><td>${s.credits}</td><td>${statusHtml}</td></tr>`;
-    });
-
-    html += `</table>`;
-
-    if(semData.supply_history && semData.supply_history.length > 0){
-      html += `
-        <button class="supply-toggle" onclick="toggleSupply('${supplyId}')">
-          📋 Supply Attempts (${semData.supply_history.length}) <span class="arrow" id="arrow-${supplyId}">▶</span>
-        </button>
-        <div class="supply-body" id="${supplyId}">
-          <div class="supply-inner">
-            <table class="supply-table">
-              <tr><th>Exam</th><th>Subjects</th><th>Result</th></tr>
-      `;
-      semData.supply_history.forEach(sh => {
-        html += `<tr><td>${sh.exam}</td><td>${sh.subject_count}</td><td><span style="color:#ffd740;font-weight:600;">Attempted</span></td></tr>`;
-      });
-      html += `</table></div></div>`;
-    }
-
-    html += `</div>`;
+    html += buildSemesterCard(sem, semData);
   }
 
   document.getElementById("dashboard").innerHTML = html;
@@ -1526,20 +1642,6 @@ function renderDownloadHistory(){
    HELPERS
 ========================= */
 
-function addStep(text){
-  const container = document.getElementById("stepsContainer");
-  const div = document.createElement("div");
-  div.className = "tl-item";
-  const dot = document.createElement("div");
-  dot.className = "tl-dot dim";
-  const txt = document.createElement("div");
-  txt.className = "tl-text";
-  txt.innerHTML = text;
-  div.appendChild(dot);
-  div.appendChild(txt);
-  container.prepend(div);
-}
-
 function showError(msg, serious){
   document.getElementById("loading").style.display = "none";
   if(elapsedInterval){ clearInterval(elapsedInterval); elapsedInterval = null; }
@@ -1568,7 +1670,6 @@ function resetUI(){
   allData = {};
   scanningTarget = 2;
   renderedSemesters = new Set();
-  lastMessage = '';
   if(pollInterval){ clearInterval(pollInterval); pollInterval = null; }
   if(elapsedInterval){ clearInterval(elapsedInterval); elapsedInterval = null; }
   const el = document.getElementById("elapsed");
@@ -1576,7 +1677,6 @@ function resetUI(){
   document.getElementById("dashboard").style.display = "none";
   document.getElementById("dashboard").innerHTML = "";
   document.getElementById("errorMsg").style.display = "none";
-  document.getElementById("stepsContainer").innerHTML = "";
   const st = document.getElementById("stepText");
   if(st) st.textContent = "Starting...";
   document.getElementById("downloadBtn").style.display = "none";
@@ -1613,7 +1713,7 @@ function removeSkeletons(){
   }
 }
 
-function updateScanningBar(msg, pct, target){
+function updateScanningBar(msg, pct){
   let bar = document.getElementById("scanningBar");
   if(!bar){
     const db = document.getElementById("dashboard");
@@ -1621,7 +1721,6 @@ function updateScanningBar(msg, pct, target){
     div.id = "scanningBar";
     div.className = "scanning-bar";
     div.innerHTML = `
-      <div class="sb-header">✅ Found Semester ${target-1} — 🔍 Finding Semester ${target}...</div>
       <div class="sb-sub" id="sbMsg">${msg}</div>
       <div class="sb-panda-track">
         <div class="sb-walker" id="pandaScanning" style="left:${pct}%">
@@ -1640,8 +1739,6 @@ function updateScanningBar(msg, pct, target){
       </div>`;
     db.insertBefore(div, db.firstChild);
   } else {
-    const header = bar.querySelector(".sb-header");
-    if(header && target) header.textContent = `✅ Found Semester ${target-1} — 🔍 Finding Semester ${target}...`;
     const msgEl = document.getElementById("sbMsg");
     if(msgEl && msg) msgEl.textContent = msg;
     const fill = bar.querySelector(".sb-fill");
@@ -1685,6 +1782,53 @@ function removeScanningBar(){
 ========================= */
 
 renderDownloadHistory();
+
+/* =========================
+   UPSELL MODAL
+========================= */
+
+function showUpsell(){ document.getElementById("upsellOverlay").classList.add("open"); }
+function closeUpsell(){ document.getElementById("upsellOverlay").classList.remove("open"); }
+
+/* Close on overlay click */
+document.getElementById("upsellOverlay").addEventListener("click", function(e){
+  if(e.target === this) closeUpsell();
+});
+
+/* =========================
+   UPDATE SEARCHES BADGE
+========================= */
+
+async function updateSearchesLeft(){
+  try{
+    const res = await fetch("/searches-remaining");
+    if(!res.ok) return;
+    const data = await res.json();
+    const badge = document.getElementById("searchesBadge");
+    if(badge){
+      badge.textContent = data.searches_left + " left";
+      badge.className = "searches-badge " + (data.searches_left === 0 ? "low" : "ok");
+      badge.onclick = (data.searches_left === 0 && data.plan === "free") ? showUpsell : null;
+    }
+    const fill = document.getElementById("limitBarFill");
+    if(fill) fill.style.width = data.usage_pct + "%";
+  }catch(e){}
+}
+
+/* Call after search completes */
+const origRenderDashboard = renderDashboard;
+renderDashboard = function(data){
+  origRenderDashboard(data);
+  updateSearchesLeft();
+};
+
+/* Auto-show upsell on load if exhausted */
+(function(){
+  const badge = document.getElementById("searchesBadge");
+  if(isFree && badge && badge.classList.contains("low")){
+    setTimeout(showUpsell, 800);
+  }
+})();
 
 </script>
 

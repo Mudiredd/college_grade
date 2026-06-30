@@ -107,15 +107,32 @@
       .data-table { display:block; overflow-x:auto; white-space:nowrap; font-size:.8rem; }
       .data-table th, .data-table td { padding:8px 10px; }
     }
+    /* Flash messages */
+    .flash-container{position:fixed;top:72px;left:50%;transform:translateX(-50%);z-index:999;width:90%;max-width:480px;pointer-events:none;}
+    .flash-msg{padding:10px 16px;border-radius:10px;font-size:.83rem;margin-bottom:6px;text-align:center;animation:fadeInUp .3s;pointer-events:auto;backdrop-filter:blur(8px);}
+    .flash-success{background:rgba(0,230,118,.12);color:#00e676;border:1px solid rgba(0,230,118,.25);}
+    .flash-error{background:rgba(255,82,82,.12);color:#ff5252;border:1px solid rgba(255,82,82,.25);}
+    .flash-info{background:rgba(212,64,94,.12);color:#d4405e;border:1px solid rgba(212,64,94,.25);}
   </style>
 </head>
 <body>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div class="flash-container">
+  {% for category, message in messages %}
+  <div class="flash-msg flash-{{ category }}">{{ message }}</div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
 
 <div class="topbar">
   <div class="topbar-title">SR & BGNR <span>Tracker</span></div>
   <div class="topbar-links">
     <a href="{{ url_for('index') }}">🔍 Search</a>
     <a href="{{ url_for('subscribe') }}">💳 Subscribe</a>
+    <a href="{{ url_for('contact') }}">📬 Contact</a>
     <a href="{{ url_for('auth.logout') }}">Logout</a>
   </div>
 </div>
@@ -162,7 +179,7 @@
           {% if sub.end_date %}
             Expires: <strong>{{ sub.end_date.strftime('%d %b %Y') }}</strong><br>
           {% endif %}
-          {% set limits = {'basic':1,'monthly':4,'yearly':8} %}
+          {% set limits = {'basic':3,'monthly':4,'yearly':8} %}
           {% set daily_limit = limits.get(current_user.plan, 0) %}
           {% if daily_limit > 0 %}
             Today's searches: <strong>{{ searches_today }} / {{ daily_limit }}</strong>

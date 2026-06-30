@@ -25,3 +25,13 @@ class Config:
     ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'sravan123')
 
     UPI_ID = os.getenv('UPI_ID', 'mudireddyreddy346@upi')
+
+    SESSION_COOKIE_SECURE = bool(os.getenv('SESSION_COOKIE_SECURE', 'false').lower() in ('true', '1'))
+    SESSION_COOKIE_SAMESITE = os.getenv('SESSION_COOKIE_SAMESITE', 'Lax')
+
+    GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID', '')
+    GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET', '')
+    BASE_URL = os.getenv('BASE_URL', '').rstrip('/')
+
+    TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
+    ADMIN_CHAT_ID = os.getenv('ADMIN_CHAT_ID', '')

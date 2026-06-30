@@ -8,7 +8,7 @@ from flask_mail import Message
 from email_validator import validate_email, EmailNotValidError
 
 from models import db, User
-from extensions import bcrypt, mail
+from extensions import bcrypt, mail, oauth
 
 auth_bp = Blueprint('auth', __name__)
 logger = logging.getLogger(__name__)
@@ -221,6 +221,67 @@ def login():
         flash('Invalid email or password!', 'error')
 
     return render_template('login.html')
+
+
+# ── Google Login ──────────────────────────────────────────
+@auth_bp.route('/login/google')
+def google_login():
+    client = oauth.create_client('google')
+    if not client:
+        flash('Google login is not configured.', 'error')
+        return redirect(url_for('auth.login'))
+    base = current_app.config['BASE_URL']
+    redirect_uri = base + url_for('auth.google_authorize')
+    return client.authorize_redirect(redirect_uri=redirect_uri)
+
+
+@auth_bp.route('/login/google/authorize')
+def google_authorize():
+    client = oauth.create_client('google')
+    if not client:
+        flash('Google login is not configured.', 'error')
+        return redirect(url_for('auth.login'))
+
+    try:
+        token = client.authorize_access_token()
+        userinfo = token.get('userinfo')
+        if not userinfo:
+            userinfo = client.parse_id_token(token)
+    except Exception as e:
+        logger.exception(f"Google OAuth callback failed: {e}")
+        flash('Google sign-in failed. Please try again.', 'error')
+        return redirect(url_for('auth.login'))
+
+    email = userinfo.get('email', '')
+    name = userinfo.get('name', email.split('@')[0])
+    google_id = userinfo.get('sub', '')
+
+    if not email:
+        flash('Could not retrieve your email from Google.', 'error')
+        return redirect(url_for('auth.login'))
+
+    user = User.query.filter_by(google_id=google_id).first()
+    if not user:
+        user = User.query.filter_by(email=email).first()
+        if user:
+            user.google_id = google_id
+            db.session.commit()
+        else:
+            import secrets
+            user = User(
+                name=name,
+                email=email,
+                password=bcrypt.generate_password_hash(secrets.token_urlsafe(32)).decode('utf-8'),
+                google_id=google_id,
+                plan='free',
+                email_verified=True,
+            )
+            db.session.add(user)
+            db.session.commit()
+
+    login_user(user)
+    flash('Signed in with Google!', 'success')
+    return redirect(url_for('index'))
 
 
 # ── Logout ───────────────────────────────────────────────

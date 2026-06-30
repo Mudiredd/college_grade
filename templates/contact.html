@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Contact — SR & BGNR College Tracker</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Inter','Segoe UI',sans-serif; background:#0d0709; color:#fff; min-height:100vh; }
+    .topbar {
+      position:sticky; top:0; z-index:100;
+      background:rgba(26,26,46,.85); backdrop-filter:blur(14px);
+      padding:12px 24px; display:flex; justify-content:space-between; align-items:center;
+      border-bottom:1px solid rgba(255,255,255,.06);
+    }
+    .topbar-title { color:#fff; font-weight:700; font-size:.95rem; }
+    .topbar-title span { color:#d4405e; }
+    .topbar-links { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+    .topbar-links a { color:#b09090; font-size:.82rem; text-decoration:none; padding:6px 12px; border-radius:8px; transition:all .2s; white-space:nowrap; }
+    .topbar-links a:hover { color:#fff; background:rgba(255,255,255,.06); }
+    .container { max-width:680px; margin:0 auto; padding:48px 20px; }
+    .card {
+      background:rgba(26,26,46,.75); backdrop-filter:blur(10px);
+      border:1px solid rgba(255,255,255,.06); border-radius:16px;
+      padding:32px;
+    }
+    h1 { font-size:1.4rem; margin-bottom:6px; }
+    h1 span { color:#d4405e; }
+    .sub { color:#a07878; font-size:.88rem; margin-bottom:28px; line-height:1.7; }
+    .contact-item {
+      display:flex; align-items:flex-start; gap:14px;
+      padding:16px 0; border-bottom:1px solid rgba(255,255,255,.05);
+    }
+    .contact-item:last-child { border-bottom:none; }
+    .ci-icon { font-size:1.3rem; width:28px; text-align:center; flex-shrink:0; }
+    .ci-label { color:#7a5858; font-size:.75rem; text-transform:uppercase; letter-spacing:.05em; margin-bottom:2px; }
+    .ci-value { color:#ddd; font-size:.93rem; }
+    .ci-value a { color:#d4405e; text-decoration:none; }
+    .ci-value a:hover { text-decoration:underline; }
+    .faq { margin-top:24px; }
+    .faq-item { padding:14px 0; border-bottom:1px solid rgba(255,255,255,.05); }
+    .faq-q { font-weight:600; font-size:.9rem; color:#fff; margin-bottom:4px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; }
+    .faq-q .arrow { color:#6a4848; transition:transform .2s; }
+    .faq-q.open .arrow { transform:rotate(90deg); }
+    .faq-a { font-size:.84rem; color:#a07878; line-height:1.7; display:none; margin-top:6px; }
+    .faq-a.open { display:block; }
+    @media(max-width:480px){
+      .topbar { padding:10px 14px; flex-direction:column; gap:6px; }
+      .topbar-links { width:100%; justify-content:center; }
+      .container { padding:24px 14px; }
+      .card { padding:20px; }
+    }
+    /* Flash messages */
+    .flash-container{position:fixed;top:72px;left:50%;transform:translateX(-50%);z-index:999;width:90%;max-width:480px;pointer-events:none;}
+    .flash-msg{padding:10px 16px;border-radius:10px;font-size:.83rem;margin-bottom:6px;text-align:center;animation:fadeInUp .3s;pointer-events:auto;backdrop-filter:blur(8px);}
+    .flash-success{background:rgba(0,230,118,.12);color:#00e676;border:1px solid rgba(0,230,118,.25);}
+    .flash-error{background:rgba(255,82,82,.12);color:#ff5252;border:1px solid rgba(255,82,82,.25);}
+    .flash-info{background:rgba(212,64,94,.12);color:#d4405e;border:1px solid rgba(212,64,94,.25);}
+  </style>
+</head>
+<body>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div class="flash-container">
+  {% for category, message in messages %}
+  <div class="flash-msg flash-{{ category }}">{{ message }}</div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+
+<div class="topbar">
+  <div class="topbar-title">SR & BGNR <span>Tracker</span></div>
+  <div class="topbar-links">
+    <a href="{{ url_for('index') }}">🔍 Search</a>
+    <a href="{{ url_for('account') }}">👤 Account</a>
+    <a href="{{ url_for('subscribe') }}">💳 Subscribe</a>
+    <a href="{{ url_for('auth.logout') }}">Logout</a>
+  </div>
+</div>
+
+<div class="container">
+  <div class="card">
+    <h1>📬 <span>Contact</span> & Support</h1>
+    <p class="sub">Need help? Reach out to us. We typically respond within 24 hours.</p>
+
+    <div class="contact-item">
+      <div class="ci-icon">📧</div>
+      <div>
+        <div class="ci-label">Email</div>
+        <div class="ci-value"><a href="mailto:vishnu12shiva@gmail.com">vishnu12shiva@gmail.com</a></div>
+      </div>
+    </div>
+
+    <div class="contact-item">
+      <div class="ci-icon">⏰</div>
+      <div>
+        <div class="ci-label">Response Time</div>
+        <div class="ci-value">Within 24 hours (usually sooner)</div>
+      </div>
+    </div>
+
+    <div class="contact-item">
+      <div class="ci-icon">📖</div>
+      <div>
+        <div class="ci-label">UTR Guide</div>
+        <div class="ci-value"><a href="{{ url_for('static', filename='utr-guide.png') }}" target="_blank">How to find your UTR number →</a></div>
+      </div>
+    </div>
+
+    <div class="faq">
+      <h2 style="font-size:.95rem;color:#7a5858;margin-bottom:8px;">❓ FAQ</h2>
+
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggleFaq(this)">How long does payment approval take? <span class="arrow">▶</span></div>
+        <div class="faq-a">Payments are usually approved within 24 hours after you submit the UTR number. You'll get an email confirmation once approved.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggleFaq(this)">My search is stuck in queue, what should I do? <span class="arrow">▶</span></div>
+        <div class="faq-a">Wait a few minutes. If it doesn't progress, cancel and try again. If the issue persists, contact us.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggleFaq(this)">Can I get a refund? <span class="arrow">▶</span></div>
+        <div class="faq-a">Refunds are handled on a case-by-case basis. Contact us with your payment details.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleFaq(el) {
+  el.classList.toggle('open');
+  const answer = el.nextElementSibling;
+  answer.classList.toggle('open');
+}
+</script>
+</body>
+</html>
