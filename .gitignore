@@ -3,3 +3,28 @@ __pycache__/
 *.pyc
 .env
 *.db
+
+# Logs
+*.log
+flask_out*
+flask_err*
+ngrok*.log
+out.log
+err.log
+
+# Test / debug files
+test*.pdf
+test_pdf.py
+test_out.pdf
+cookies.txt
+
+# Debug artifacts
+pdf_layout*.json
+
+# Downloaded fonts
+static/fonts/
+
+# IDE
+.idea/
+.vscode/
+*.swp
