@@ -712,7 +712,7 @@ UTR: {utr}
 Approve/reject in the admin panel."""
         with current_app.app_context():
             mail.send(msg)
-    except Exception as e:
+    except BaseException as e:
         logger.exception(f"Admin notify mail error: {e}")
 
     # ── Notify admin (Telegram) ──

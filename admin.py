@@ -178,7 +178,7 @@ You can now use SR & BGNR College Tracker.
 — Admin"""
         with current_app.app_context():
             mail.send(msg)
-    except Exception as e:
+    except BaseException as e:
         logger.exception(f"Approval mail error: {e}")
 
 
@@ -204,8 +204,31 @@ If you think this is a mistake, contact support.
 — Admin"""
         with current_app.app_context():
             mail.send(msg)
-    except Exception as e:
+    except BaseException as e:
         logger.exception(f"Rejection mail error: {e}")
+
+
+def _send_telegram(message):
+    """Send Telegram notification."""
+    token = current_app.config.get('TELEGRAM_BOT_TOKEN', '')
+    chat_id = current_app.config.get('ADMIN_CHAT_ID', '')
+    if not token or not chat_id:
+        logger.warning("Telegram not configured — skipping notification")
+        return False
+    try:
+        import requests
+        resp = requests.post(
+            f'https://api.telegram.org/bot{token}/sendMessage',
+            json={'chat_id': chat_id, 'text': message, 'parse_mode': 'HTML'},
+            timeout=10
+        )
+        if not resp.ok:
+            logger.warning(f"Telegram API error: {resp.status_code} {resp.text}")
+            return False
+        return True
+    except BaseException as e:
+        logger.exception(f"Telegram send failed: {e}")
+        return False
 
 
 @admin_bp.route('/admin/payments/<int:payment_id>/status', methods=['POST'])
@@ -231,12 +254,25 @@ def set_payment_status(payment_id):
         if new_status == 'approved':
             _activate_payment(payment)
             _send_approval_email(payment)
+            _send_telegram(
+                f"✅ <b>Payment Approved</b>\n\n"
+                f"<b>User:</b> {payment.user.name} / {payment.user.email}\n"
+                f"<b>Plan:</b> {payment.plan}\n"
+                f"<b>Amount:</b> ₹{payment.amount}\n"
+                f"<b>UTR:</b> {payment.utr}"
+            )
         elif new_status == 'rejected':
             payment.status = 'rejected'
             _send_rejection_email(payment)
+            _send_telegram(
+                f"❌ <b>Payment Rejected</b>\n\n"
+                f"<b>User:</b> {payment.user.name} / {payment.user.email}\n"
+                f"<b>Plan:</b> {payment.plan}\n"
+                f"<b>Amount:</b> ₹{payment.amount}\n"
+                f"<b>UTR:</b> {payment.utr}"
+            )
         else:  # revert to pending
             payment.status = 'pending'
-            # Don't touch subscription — admin manages that separately
 
         db.session.commit()
         return jsonify({'ok': True})
@@ -283,6 +319,15 @@ def bulk_payment_action():
             count += 1
 
         db.session.commit()
+
+        if count:
+            action_label = {'approve': 'Approved', 'reject': 'Rejected', 'pending': 'Reverted to Pending'}
+            _send_telegram(
+                f"📋 <b>Bulk Payment {action_label.get(action, action)}</b>\n\n"
+                f"<b>Count:</b> {count} payment(s)\n"
+                f"<b>Action:</b> {action_label.get(action, action)}"
+            )
+
         return jsonify({'ok': True, 'count': count})
     except Exception as e:
         db.session.rollback()
