@@ -251,12 +251,14 @@ def set_payment_status(payment_id):
 
     # ── Handle transition ──
     try:
+        user = User.query.get(payment.user_id)
+        user_info = f"{user.name} / {user.email}" if user else f"User #{payment.user_id}"
         if new_status == 'approved':
             _activate_payment(payment)
             _send_approval_email(payment)
             _send_telegram(
                 f"✅ <b>Payment Approved</b>\n\n"
-                f"<b>User:</b> {payment.user.name} / {payment.user.email}\n"
+                f"<b>User:</b> {user_info}\n"
                 f"<b>Plan:</b> {payment.plan}\n"
                 f"<b>Amount:</b> ₹{payment.amount}\n"
                 f"<b>UTR:</b> {payment.utr}"
@@ -266,7 +268,7 @@ def set_payment_status(payment_id):
             _send_rejection_email(payment)
             _send_telegram(
                 f"❌ <b>Payment Rejected</b>\n\n"
-                f"<b>User:</b> {payment.user.name} / {payment.user.email}\n"
+                f"<b>User:</b> {user_info}\n"
                 f"<b>Plan:</b> {payment.plan}\n"
                 f"<b>Amount:</b> ₹{payment.amount}\n"
                 f"<b>UTR:</b> {payment.utr}"
