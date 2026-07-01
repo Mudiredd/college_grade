@@ -518,6 +518,7 @@ oauth.register(
 
 with app.app_context():
     init_serializer(app.config['SECRET_KEY'])
+    create_admin()
 
 # ===================== LOGIN =====================
 login_manager = LoginManager(app)
