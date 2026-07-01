@@ -1,4 +1,5 @@
 import logging
+import threading
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
 from models import db, User, Payment, Subscription, SearchHistory, SemesterPattern
@@ -208,29 +209,6 @@ If you think this is a mistake, contact support.
         logger.exception(f"Rejection mail error: {e}")
 
 
-def _send_telegram(message):
-    """Send Telegram notification."""
-    token = current_app.config.get('TELEGRAM_BOT_TOKEN', '')
-    chat_id = current_app.config.get('ADMIN_CHAT_ID', '')
-    if not token or not chat_id:
-        logger.warning("Telegram not configured — skipping notification")
-        return False
-    try:
-        import requests
-        resp = requests.post(
-            f'https://api.telegram.org/bot{token}/sendMessage',
-            json={'chat_id': chat_id, 'text': message, 'parse_mode': 'HTML'},
-            timeout=10
-        )
-        if not resp.ok:
-            logger.warning(f"Telegram API error: {resp.status_code} {resp.text}")
-            return False
-        return True
-    except BaseException as e:
-        logger.exception(f"Telegram send failed: {e}")
-        return False
-
-
 @admin_bp.route('/admin/payments/<int:payment_id>/status', methods=['POST'])
 @login_required
 def set_payment_status(payment_id):
@@ -251,28 +229,12 @@ def set_payment_status(payment_id):
 
     # ── Handle transition ──
     try:
-        user = User.query.get(payment.user_id)
-        user_info = f"{user.name} / {user.email}" if user else f"User #{payment.user_id}"
         if new_status == 'approved':
             _activate_payment(payment)
-            _send_approval_email(payment)
-            _send_telegram(
-                f"✅ <b>Payment Approved</b>\n\n"
-                f"<b>User:</b> {user_info}\n"
-                f"<b>Plan:</b> {payment.plan}\n"
-                f"<b>Amount:</b> ₹{payment.amount}\n"
-                f"<b>UTR:</b> {payment.utr}"
-            )
+            threading.Thread(target=_send_approval_email, args=(payment,)).start()
         elif new_status == 'rejected':
             payment.status = 'rejected'
-            _send_rejection_email(payment)
-            _send_telegram(
-                f"❌ <b>Payment Rejected</b>\n\n"
-                f"<b>User:</b> {user_info}\n"
-                f"<b>Plan:</b> {payment.plan}\n"
-                f"<b>Amount:</b> ₹{payment.amount}\n"
-                f"<b>UTR:</b> {payment.utr}"
-            )
+            threading.Thread(target=_send_rejection_email, args=(payment,)).start()
         else:  # revert to pending
             payment.status = 'pending'
 
@@ -308,12 +270,12 @@ def bulk_payment_action():
                 if payment.status == 'approved':
                     continue
                 _activate_payment(payment)
-                _send_approval_email(payment)
+                threading.Thread(target=_send_approval_email, args=(payment,)).start()
             elif action == 'reject':
                 if payment.status == 'rejected':
                     continue
                 payment.status = 'rejected'
-                _send_rejection_email(payment)
+                threading.Thread(target=_send_rejection_email, args=(payment,)).start()
             else:  # revert to pending
                 if payment.status == 'pending':
                     continue
@@ -321,14 +283,6 @@ def bulk_payment_action():
             count += 1
 
         db.session.commit()
-
-        if count:
-            action_label = {'approve': 'Approved', 'reject': 'Rejected', 'pending': 'Reverted to Pending'}
-            _send_telegram(
-                f"📋 <b>Bulk Payment {action_label.get(action, action)}</b>\n\n"
-                f"<b>Count:</b> {count} payment(s)\n"
-                f"<b>Action:</b> {action_label.get(action, action)}"
-            )
 
         return jsonify({'ok': True, 'count': count})
     except Exception as e:
