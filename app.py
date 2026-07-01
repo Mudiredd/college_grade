@@ -818,21 +818,27 @@ def generate_pdf():
         data = json.loads(raw)
 
         try:
-            pdfmetrics.registerFont(TTFont('Cal', r'C:\Windows\Fonts\calibri.ttf'))
-            pdfmetrics.registerFont(TTFont('CalB', r'C:\Windows\Fonts\calibrib.ttf'))
-            F, FB = 'Cal', 'CalB'
+            pdfmetrics.registerFont(TTFont('Segoe', r'C:\Windows\Fonts\segoeui.ttf'))
+            pdfmetrics.registerFont(TTFont('SegoeB', r'C:\Windows\Fonts\segoeuib.ttf'))
+            F, FB = 'Segoe', 'SegoeB'
         except Exception:
-            F, FB = 'Helvetica', 'Helvetica-Bold'
+            try:
+                pdfmetrics.registerFont(TTFont('Cal', r'C:\Windows\Fonts\calibri.ttf'))
+                pdfmetrics.registerFont(TTFont('CalB', r'C:\Windows\Fonts\calibrib.ttf'))
+                F, FB = 'Cal', 'CalB'
+            except Exception:
+                F, FB = 'Helvetica', 'Helvetica-Bold'
 
-        BG     = colors.HexColor("#0d0709")
-        CARD   = colors.HexColor("#1a1a2e")
-        ACCENT = colors.HexColor("#d4405e")
-        GOLD   = colors.HexColor("#ffd740")
-        GREEN  = colors.HexColor("#00e676")
-        RED    = colors.HexColor("#ff5252")
-        TXT    = colors.HexColor("#ffffff")
-        TXT2   = colors.HexColor("#c09898")
-        TXT3   = colors.HexColor("#6a4848")
+        BG       = colors.HexColor("#0d0709")
+        CARD     = colors.HexColor("#1a1a2e")
+        CARDBRDR = colors.HexColor("#26264a")
+        ACCENT   = colors.HexColor("#d4405e")
+        GOLD     = colors.HexColor("#ffd740")
+        GREEN    = colors.HexColor("#00e676")
+        RED      = colors.HexColor("#ff5252")
+        TXT      = colors.HexColor("#ffffff")
+        TXT2     = colors.HexColor("#b09090")
+        TXT3     = colors.HexColor("#7a5858")
         PASS_BG = colors.HexColor("#0a1a10")
         FAIL_BG = colors.HexColor("#1e0a0a")
         SUP_BG  = colors.HexColor("#1a1608")
@@ -870,12 +876,12 @@ def generate_pdf():
                                   textColor=c, alignment=align, leading=sz * 1.35)
 
         class CardFlowable(Flowable):
-            def __init__(self, inner, card_width, bg, border=None, radius=8,
+            def __init__(self, inner, card_width, bg, border=None, radius=14,
                          lp=16.5, rp=16.5, tp=15, bp=15):
                 Flowable.__init__(self)
                 self.inner = inner
                 self.bg = bg
-                self.border = border or bg
+                self.border = border if border is not None else CARDBRDR
                 self.radius = radius
                 self.cw = card_width
                 self.lp = lp; self.rp = rp; self.tp = tp; self.bp = bp
@@ -888,13 +894,13 @@ def generate_pdf():
                 self.canv.saveState()
                 self.canv.setFillColor(self.bg)
                 self.canv.setStrokeColor(self.border)
-                self.canv.setLineWidth(2)
+                self.canv.setLineWidth(1)
                 self.canv.roundRect(0, 0, self.cw, self._h, self.radius, fill=1, stroke=1)
                 self.canv.restoreState()
                 self.inner.drawOn(self.canv, self.lp, self.bp)
 
         class PillFlowable(Flowable):
-            def __init__(self, text, txt_clr, bg_clr, w=30*mm, h=20, radius=20):
+            def __init__(self, text, txt_clr, bg_clr, w=30*mm, h=22, radius=20):
                 Flowable.__init__(self)
                 self.text = text; self.txt_clr = txt_clr; self.bg = bg_clr
                 self.w = w; self.h = h; self.r = radius
@@ -908,14 +914,14 @@ def generate_pdf():
                 self.canv.roundRect(0, 0, self.w, self.h, self.r, fill=1, stroke=1)
                 self.canv.restoreState()
                 self.canv.saveState()
-                self.canv.setFont(FB, 9)
+                self.canv.setFont(FB, 9.5)
                 self.canv.setFillColor(self.txt_clr)
-                tw = self.canv.stringWidth(self.text, FB, 9)
-                self.canv.drawString((self.w - tw) / 2, (self.h - 9) / 2 + 1, self.text)
+                tw = self.canv.stringWidth(self.text, FB, 9.5)
+                self.canv.drawString((self.w - tw) / 2, (self.h - 9.5) / 2 + 1, self.text)
                 self.canv.restoreState()
 
         class BadgeFlowable(Flowable):
-            def __init__(self, text, txt_clr, bg_clr, bdr_clr, w=35*mm, h=22, radius=20):
+            def __init__(self, text, txt_clr, bg_clr, bdr_clr, w=35*mm, h=24, radius=20):
                 Flowable.__init__(self)
                 self.text = text; self.txt_clr = txt_clr; self.bg = bg_clr
                 self.bdr = bdr_clr; self.w = w; self.h = h; self.r = radius
@@ -929,17 +935,17 @@ def generate_pdf():
                 self.canv.roundRect(0, 0, self.w, self.h, self.r, fill=1, stroke=1)
                 self.canv.restoreState()
                 self.canv.saveState()
-                self.canv.setFont(FB, 9)
+                self.canv.setFont(FB, 9.5)
                 self.canv.setFillColor(self.txt_clr)
-                tw = self.canv.stringWidth(self.text, FB, 9)
-                self.canv.drawString((self.w - tw) / 2, (self.h - 9) / 2 + 1, self.text)
+                tw = self.canv.stringWidth(self.text, FB, 9.5)
+                self.canv.drawString((self.w - tw) / 2, (self.h - 9.5) / 2 + 1, self.text)
                 self.canv.restoreState()
 
         def draw_bg(canvas, doc):
             canvas.saveState()
             canvas.setFillColor(BG)
             canvas.rect(0, 0, A4[0], A4[1], fill=1, stroke=0)
-            canvas.setFont(F, 6.5)
+            canvas.setFont(F, 7.5)
             canvas.setFillColor(TXT3)
             canvas.drawString(14*mm, 6*mm, "SR & BGNR College Tracker")
             canvas.drawRightString(A4[0]-14*mm, 6*mm, f"Page {canvas.getPageNumber()}")
@@ -947,40 +953,40 @@ def generate_pdf():
 
         els = []
 
-        hdr = Table([[Paragraph(time_str, S(7, DIM)),
-                       Paragraph("SR & BGNR College Tracker", S(7, DIM, TA_RIGHT))]],
+        hdr = Table([[Paragraph(time_str, S(8, DIM)),
+                       Paragraph("SR & BGNR College Tracker", S(8, DIM, TA_RIGHT))]],
                      colWidths=[pw*0.5, pw*0.5])
         hdr.setStyle(TableStyle([("VALIGN",(0,0),(-1,-1),"MIDDLE"),
             ("TOPPADDING",(0,0),(-1,-1),0),("BOTTOMPADDING",(0,0),(-1,-1),0)]))
         els.append(hdr)
-        els.append(Spacer(1, 3*mm))
+        els.append(Spacer(1, 4*mm))
 
-        els.append(Paragraph("SR & BGNR College", S(16, ACCENT, TA_CENTER, bold=True)))
-        els.append(Paragraph("Academic Report", S(11, TXT2, TA_CENTER)))
-        els.append(Spacer(1, 2*mm))
-        els.append(Paragraph(f"Registration No: {regd_no}", S(8, TXT2, TA_CENTER)))
-        els.append(Paragraph(f"Generated: {date_str}", S(7, TXT3, TA_CENTER)))
-        els.append(Spacer(1, 5*mm))
+        els.append(Paragraph("SR &amp; BGNR College", S(20, ACCENT, TA_CENTER, bold=True)))
+        els.append(Paragraph("Academic Report", S(13, TXT2, TA_CENTER)))
+        els.append(Spacer(1, 3*mm))
+        els.append(Paragraph(f"Registration No: {regd_no}", S(10, TXT2, TA_CENTER)))
+        els.append(Paragraph(f"Generated: {date_str}", S(8.5, TXT3, TA_CENTER)))
+        els.append(Spacer(1, 6*mm))
 
         stat_data = [
-            [Paragraph(str(regd_no), S(22, GOLD, TA_CENTER, bold=True)),
-             Paragraph(str(total_subs), S(22, ACCENT, TA_CENTER, bold=True)),
-             Paragraph(str(total_passed), S(22, GREEN, TA_CENTER, bold=True)),
-             Paragraph(str(total_arrears), S(22, RED, TA_CENTER, bold=True))],
-            [Paragraph("Regd No", S(9, TXT3, TA_CENTER)),
-             Paragraph("Subjects", S(9, TXT3, TA_CENTER)),
-             Paragraph("Passed", S(9, TXT3, TA_CENTER)),
-             Paragraph("Arrears", S(9, TXT3, TA_CENTER))],
+            [Paragraph(str(regd_no), S(24, GOLD, TA_CENTER, bold=True)),
+             Paragraph(str(total_subs), S(24, ACCENT, TA_CENTER, bold=True)),
+             Paragraph(str(total_passed), S(24, GREEN, TA_CENTER, bold=True)),
+             Paragraph(str(total_arrears), S(24, RED, TA_CENTER, bold=True))],
+            [Paragraph("Regd No", S(10, TXT3, TA_CENTER)),
+             Paragraph("Subjects", S(10, TXT3, TA_CENTER)),
+             Paragraph("Passed", S(10, TXT3, TA_CENTER)),
+             Paragraph("Arrears", S(10, TXT3, TA_CENTER))],
         ]
-        stat_inner = Table(stat_data, colWidths=[(pw - 33)*0.25]*4, rowHeights=[32, 14])
+        stat_inner = Table(stat_data, colWidths=[(pw - 33)*0.25]*4, rowHeights=[38, 16])
         stat_inner.setStyle(TableStyle([
             ("LINEAFTER", (0,0), (0,-1), 0.5, colors.HexColor("#2a1a20")),
             ("LINEAFTER", (1,0), (1,-1), 0.5, colors.HexColor("#2a1a20")),
             ("LINEAFTER", (2,0), (2,-1), 0.5, colors.HexColor("#2a1a20")),
             ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
         ]))
-        els.append(CardFlowable(stat_inner, pw, CARD, lp=16.5, rp=16.5, tp=8, bp=6))
-        els.append(Spacer(1, 5*mm))
+        els.append(CardFlowable(stat_inner, pw, CARD, lp=16.5, rp=16.5, tp=10, bp=8))
+        els.append(Spacer(1, 6*mm))
 
         inner_w = pw - 33
         cw = [25, inner_w - 48 - 48 - 85 - 25, 48, 48, 85]
@@ -988,8 +994,8 @@ def generate_pdf():
         for sem_num, sd in sem_list:
             if sd is None:
                 empty_inner = Table(
-                    [[Paragraph(f"Semester {sem_num}", S(12, TXT3, bold=True)),
-                      Paragraph("No Data Yet", S(10, DIM, TA_RIGHT))]],
+                    [[Paragraph(f"Semester {sem_num}", S(14, TXT3, bold=True)),
+                      Paragraph("No Data Yet", S(11, DIM, TA_RIGHT))]],
                     colWidths=[(pw-44)*0.5, (pw-44)*0.5])
                 empty_inner.setStyle(TableStyle([
                     ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
@@ -997,8 +1003,8 @@ def generate_pdf():
                     ("BOTTOMPADDING", (0,0), (-1,-1), 0),
                 ]))
                 els.append(CardFlowable(empty_inner, pw, colors.HexColor("#141228"),
-                                         radius=8, lp=22, rp=22, tp=10, bp=10))
-                els.append(Spacer(1, 2*mm))
+                                         radius=14, lp=22, rp=22, tp=12, bp=12))
+                els.append(Spacer(1, 3*mm))
                 continue
 
             subjects = sd.get("subjects", [])
@@ -1008,15 +1014,15 @@ def generate_pdf():
             arr_clr = RED if has_arr else GREEN
             badge_t = f"{arrears} Arrear{'s' if arrears!=1 else ''}" if has_arr else "All cleared"
             badge_b = FAIL_BG if has_arr else PASS_BG
-            card_bdr = arr_clr
+            card_bdr = arr_clr if has_arr else CARDBRDR
 
             badge = BadgeFlowable(badge_t, arr_clr, badge_b, arr_clr)
 
             sem_rows = []
 
             header_inner = Table(
-                [[Paragraph(f"Semester {sem_num}", S(12, TXT, bold=True)),
-                  Paragraph(f"{exam_name}  \u00b7  {len(subjects)} subjects", S(10, TXT3)),
+                [[Paragraph(f"Semester {sem_num}", S(14, TXT, bold=True)),
+                  Paragraph(f"{exam_name}  \u00b7  {len(subjects)} subjects", S(11, TXT3)),
                   badge]],
                 colWidths=[inner_w*0.28, inner_w*0.47, inner_w*0.25])
             header_inner.setStyle(TableStyle([
@@ -1027,11 +1033,11 @@ def generate_pdf():
             sem_rows.append([header_inner, None, None, None, None])
 
             sem_rows.append([
-                Paragraph("#", S(9, TXT3, TA_CENTER, bold=True)),
-                Paragraph("SUBJECT", S(9, TXT3, bold=True)),
-                Paragraph("GRADE", S(9, TXT3, TA_CENTER, bold=True)),
-                Paragraph("CREDITS", S(9, TXT3, TA_CENTER, bold=True)),
-                Paragraph("STATUS", S(9, TXT3, TA_CENTER, bold=True)),
+                Paragraph("#", S(9.5, TXT3, TA_CENTER, bold=True)),
+                Paragraph("SUBJECT", S(9.5, TXT3, bold=True)),
+                Paragraph("GRADE", S(9.5, TXT3, TA_CENTER, bold=True)),
+                Paragraph("CREDITS", S(9.5, TXT3, TA_CENTER, bold=True)),
+                Paragraph("STATUS", S(9.5, TXT3, TA_CENTER, bold=True)),
             ])
 
             row_styles = []
@@ -1053,10 +1059,10 @@ def generate_pdf():
                     p = PillFlowable("Arrear", RED, pb)
 
                 sem_rows.append([
-                    Paragraph(str(i), S(10.5, TXT3, TA_CENTER)),
-                    Paragraph(subj, S(10.5, TXT2)),
-                    Paragraph(grade, S(10.5, pc, TA_CENTER, bold=True)),
-                    Paragraph(str(creds), S(10.5, TXT3, TA_CENTER)),
+                    Paragraph(str(i), S(11, TXT3, TA_CENTER)),
+                    Paragraph(subj, S(11, TXT2)),
+                    Paragraph(grade, S(11, pc, TA_CENTER, bold=True)),
+                    Paragraph(str(creds), S(11, TXT3, TA_CENTER)),
                     p,
                 ])
                 ri = len(sem_rows) - 1
@@ -1069,48 +1075,48 @@ def generate_pdf():
                 ("LINEBELOW", (0,1), (-1,1), 1, ACCENT),
                 ("LINEBELOW", (0,0), (-1,0), 0.5, colors.HexColor("#1a1218")),
                 ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
-                ("TOPPADDING", (0,0), (-1,0), 4),
-                ("BOTTOMPADDING", (0,0), (-1,0), 4),
-                ("TOPPADDING", (0,1), (-1,1), 6),
-                ("BOTTOMPADDING", (0,1), (-1,1), 6),
+                ("TOPPADDING", (0,0), (-1,0), 5),
+                ("BOTTOMPADDING", (0,0), (-1,0), 5),
+                ("TOPPADDING", (0,1), (-1,1), 7),
+                ("BOTTOMPADDING", (0,1), (-1,1), 7),
                 ("LEFTPADDING", (0,1), (-1,1), 0),
                 ("RIGHTPADDING", (0,1), (-1,1), 0),
             ]
             for ri in range(2, len(sem_rows)):
-                internal_s.append(("TOPPADDING", (0,ri), (-1,ri), 5))
-                internal_s.append(("BOTTOMPADDING", (0,ri), (-1,ri), 5))
+                internal_s.append(("TOPPADDING", (0,ri), (-1,ri), 6))
+                internal_s.append(("BOTTOMPADDING", (0,ri), (-1,ri), 6))
 
             internal_tbl = Table(sem_rows, colWidths=cw, repeatRows=1)
             internal_tbl.setStyle(TableStyle(internal_s + row_styles))
 
-            sem_card = CardFlowable(internal_tbl, pw, CARD, radius=8,
+            sem_card = CardFlowable(internal_tbl, pw, CARD, border=card_bdr, radius=14,
                                      lp=16.5, rp=16.5, tp=15, bp=15)
             sem_block = [sem_card]
 
             supplies = sd.get("supplies", [])
             if supplies:
-                srows = [[Paragraph("Supply Attempts", S(10, GOLD, bold=True)), "", ""]]
+                srows = [[Paragraph("Supply Attempts", S(11, GOLD, bold=True)), "", ""]]
                 for sp in supplies:
                     srows.append([
-                        Paragraph(sp.get("exam",""), S(10, TXT2, bold=True)),
-                        Paragraph(f"{len(sp.get('subjects',[]))} subjects", S(10, TXT3, TA_CENTER)),
-                        Paragraph("Attempted", S(10, GOLD, TA_CENTER, bold=True))])
+                        Paragraph(sp.get("exam",""), S(11, TXT2, bold=True)),
+                        Paragraph(f"{len(sp.get('subjects',[]))} subjects", S(11, TXT3, TA_CENTER)),
+                        Paragraph("Attempted", S(11, GOLD, TA_CENTER, bold=True))])
                 supply_tbl = Table(srows, colWidths=[inner_w*0.4, inner_w*0.3, inner_w*0.3])
                 ss = [
                     ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#1a1608")),
                     ("SPAN", (0,0), (-1,0)),
                     ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
-                    ("TOPPADDING", (0,0), (-1,0), 5),
-                    ("BOTTOMPADDING", (0,0), (-1,0), 5),
+                    ("TOPPADDING", (0,0), (-1,0), 6),
+                    ("BOTTOMPADDING", (0,0), (-1,0), 6),
                     ("LEFTPADDING", (0,0), (0,0), 10),
                 ]
                 for ri in range(1, len(srows)):
                     ss.append(("BACKGROUND", (0,ri), (-1,ri), colors.HexColor("#141228")))
-                    ss.append(("TOPPADDING", (0,ri), (-1,ri), 5))
-                    ss.append(("BOTTOMPADDING", (0,ri), (-1,ri), 5))
+                    ss.append(("TOPPADDING", (0,ri), (-1,ri), 6))
+                    ss.append(("BOTTOMPADDING", (0,ri), (-1,ri), 6))
                 supply_tbl.setStyle(TableStyle(ss))
                 supply_card = CardFlowable(supply_tbl, pw, colors.HexColor("#1a1608"),
-                                            radius=8, lp=16.5, rp=16.5, tp=10, bp=10)
+                                            border=GOLD, radius=14, lp=16.5, rp=16.5, tp=10, bp=10)
                 sem_block.append(Spacer(1, 3*mm))
                 sem_block.append(supply_card)
 
