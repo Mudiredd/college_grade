@@ -78,7 +78,7 @@ If you didn't create an account, ignore this email.
         with current_app.app_context():
             mail.send(msg)
         return True
-    except Exception as e:
+    except BaseException as e:
         logger.warning(f"Verify email send failed for {email}: {e}")
         return False
 
@@ -128,7 +128,10 @@ def signup():
         # send verification email
         from extensions import serializer
         token = serializer.dumps(email, salt='email-verify')
-        sent = send_verify_email(email, token)
+        try:
+            sent = send_verify_email(email, token)
+        except BaseException:
+            sent = False
 
         flash('Account created! Check your email to verify your account.', 'success')
         return render_template('verify_email.html', email=email, sent=sent)
