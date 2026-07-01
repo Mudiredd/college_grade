@@ -15,3 +15,4 @@ lxml
 pdfplumber
 email-validator
 authlib
+psycopg2-binary

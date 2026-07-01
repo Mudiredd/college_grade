@@ -131,128 +131,7 @@ def admin_panel():
     )
 
 
-@admin_bp.route('/admin/approve/<int:payment_id>')
-@login_required
-def approve_payment(payment_id):
 
-    if not current_user.is_admin:
-        return redirect(url_for('index'))
-
-    payment = Payment.query.get_or_404(payment_id)
-
-    payment.status = 'approved'
-
-    # ── Disable existing subscriptions ──
-    existing = Subscription.query.filter_by(
-        user_id=payment.user_id,
-        is_active=True
-    ).all()
-
-    for s in existing:
-        s.is_active = False
-
-    # ── Create new subscription ──
-    plan_days = {'basic': 1, 'monthly': 30, 'yearly': 365}
-    plan_priority = {'basic': 2, 'monthly': 1, 'yearly': 0}
-    days = plan_days.get(payment.plan)
-    end_date = datetime.now() + timedelta(days=days) if days else None
-
-    sub = Subscription(
-        user_id=payment.user_id,
-        plan=payment.plan,
-        priority=plan_priority.get(payment.plan, 3),
-        end_date=end_date
-    )
-
-    # update user plan
-    user = User.query.get(payment.user_id)
-    if user:
-        user.plan = payment.plan
-
-    db.session.add(sub)
-    db.session.commit()
-
-    # ── Send approval email ──
-    try:
-        plan_labels = {'basic': 'Basic — 1 Day / 3 Searches', 'monthly': 'Monthly — 30 Days', 'yearly': 'Yearly — 365 Days'}
-        plan_text = plan_labels.get(payment.plan, payment.plan)
-
-        msg = Message(
-            subject='✅ Payment Approved — SR & BGNR College Tracker',
-            sender=current_app.config['MAIL_USERNAME'],
-            recipients=[user.email]
-        )
-
-        msg.body = f"""Hi {user.name},
-
-Your payment of ₹{payment.amount} has been approved!
-
-Plan: {plan_text}
-
-You can now use SR & BGNR College Tracker.
-
-— Admin"""
-
-        # ✅ FIXED: mail send inside app context
-        with current_app.app_context():
-            mail.send(msg)
-
-    except Exception as e:
-        logger.exception(f"Approval mail error: {e}")
-
-    flash(
-        f'Payment approved for {user.name}!',
-        'success'
-    )
-
-    return redirect(url_for('admin.admin_panel'))
-
-
-@admin_bp.route('/admin/reject/<int:payment_id>')
-@login_required
-def reject_payment(payment_id):
-
-    if not current_user.is_admin:
-        return redirect(url_for('index'))
-
-    payment = Payment.query.get_or_404(payment_id)
-
-    payment.status = 'rejected'
-
-    db.session.commit()
-
-    # ── Send rejection email ──
-    try:
-        user = User.query.get(payment.user_id)
-        if user:
-            msg = Message(
-                subject='❌ Payment Rejected — SR & BGNR College Tracker',
-                sender=current_app.config['MAIL_USERNAME'],
-                recipients=[user.email]
-            )
-
-            msg.body = f"""Hi {user.name},
-
-Your payment of ₹{payment.amount} for the {payment.plan} plan has been rejected.
-
-This could be due to an incorrect UTR number or payment details. Please try again with the correct information.
-
-If you think this is a mistake, contact support.
-
-— Admin"""
-
-            with current_app.app_context():
-                mail.send(msg)
-
-    except Exception as e:
-        logger.exception(f"Rejection mail error: {e}")
-
-    flash(
-        'Payment rejected!',
-        'error'
-    )
-
-    return redirect(url_for('admin.admin_panel'))
 
 
 def _activate_payment(payment):
@@ -277,14 +156,12 @@ def _activate_payment(payment):
 
 def _send_approval_email(payment):
     """Send approval email to the user."""
-    from flask_mail import Message
-    from extensions import mail
-    user = User.query.get(payment.user_id)
-    if not user:
-        return
-    plan_labels = {'basic': 'Basic — 1 Day / 3 Searches', 'monthly': 'Monthly — 30 Days', 'yearly': 'Yearly — 365 Days'}
-    plan_text = plan_labels.get(payment.plan, payment.plan)
     try:
+        user = User.query.get(payment.user_id)
+        if not user:
+            return
+        plan_labels = {'basic': 'Basic — 1 Day / 3 Searches', 'monthly': 'Monthly — 30 Days', 'yearly': 'Yearly — 365 Days'}
+        plan_text = plan_labels.get(payment.plan, payment.plan)
         msg = Message(
             subject='✅ Payment Approved — SR & BGNR College Tracker',
             sender=current_app.config['MAIL_USERNAME'],
@@ -307,12 +184,10 @@ You can now use SR & BGNR College Tracker.
 
 def _send_rejection_email(payment):
     """Send rejection email to the user."""
-    from flask_mail import Message
-    from extensions import mail
-    user = User.query.get(payment.user_id)
-    if not user:
-        return
     try:
+        user = User.query.get(payment.user_id)
+        if not user:
+            return
         msg = Message(
             subject='❌ Payment Rejected — SR & BGNR College Tracker',
             sender=current_app.config['MAIL_USERNAME'],
@@ -352,18 +227,23 @@ def set_payment_status(payment_id):
         return jsonify({'error': 'Status unchanged'}), 400
 
     # ── Handle transition ──
-    if new_status == 'approved':
-        _activate_payment(payment)
-        _send_approval_email(payment)
-    elif new_status == 'rejected':
-        payment.status = 'rejected'
-        _send_rejection_email(payment)
-    else:  # revert to pending
-        payment.status = 'pending'
-        # Don't touch subscription — admin manages that separately
+    try:
+        if new_status == 'approved':
+            _activate_payment(payment)
+            _send_approval_email(payment)
+        elif new_status == 'rejected':
+            payment.status = 'rejected'
+            _send_rejection_email(payment)
+        else:  # revert to pending
+            payment.status = 'pending'
+            # Don't touch subscription — admin manages that separately
 
-    db.session.commit()
-    return jsonify({'ok': True})
+        db.session.commit()
+        return jsonify({'ok': True})
+    except Exception as e:
+        db.session.rollback()
+        logger.exception(f"Payment status change error: {e}")
+        return jsonify({'error': 'Failed to update payment status'}), 500
 
 
 @admin_bp.route('/admin/payments/bulk', methods=['POST'])
@@ -381,28 +261,33 @@ def bulk_payment_action():
         return jsonify({'error': 'Invalid action'}), 400
 
     count = 0
-    for pid in ids:
-        payment = Payment.query.get(pid)
-        if not payment:
-            continue
-        if action == 'approve':
-            if payment.status == 'approved':
+    try:
+        for pid in ids:
+            payment = Payment.query.get(pid)
+            if not payment:
                 continue
-            _activate_payment(payment)
-            _send_approval_email(payment)
-        elif action == 'reject':
-            if payment.status == 'rejected':
-                continue
-            payment.status = 'rejected'
-            _send_rejection_email(payment)
-        else:  # revert to pending
-            if payment.status == 'pending':
-                continue
-            payment.status = 'pending'
-        count += 1
+            if action == 'approve':
+                if payment.status == 'approved':
+                    continue
+                _activate_payment(payment)
+                _send_approval_email(payment)
+            elif action == 'reject':
+                if payment.status == 'rejected':
+                    continue
+                payment.status = 'rejected'
+                _send_rejection_email(payment)
+            else:  # revert to pending
+                if payment.status == 'pending':
+                    continue
+                payment.status = 'pending'
+            count += 1
 
-    db.session.commit()
-    return jsonify({'ok': True, 'count': count})
+        db.session.commit()
+        return jsonify({'ok': True, 'count': count})
+    except Exception as e:
+        db.session.rollback()
+        logger.exception(f"Bulk payment action error: {e}")
+        return jsonify({'error': 'Failed to process bulk action'}), 500
 
 
 @admin_bp.route('/admin/cancel-subscription/<int:user_id>')

@@ -28,3 +28,8 @@ static/fonts/
 .idea/
 .vscode/
 *.swp
+
+# Local server artifacts
+start_server.ps1
+server_pid.txt
+admin_page.html
