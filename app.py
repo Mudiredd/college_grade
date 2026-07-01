@@ -518,7 +518,6 @@ oauth.register(
 
 with app.app_context():
     init_serializer(app.config['SECRET_KEY'])
-    create_admin()
 
 # ===================== LOGIN =====================
 login_manager = LoginManager(app)
@@ -1229,6 +1228,7 @@ def create_admin():
             print("Admin created!")
 
 # ===================== RUN =====================
+create_admin()
+
 if __name__ == "__main__":
-    create_admin()
     app.run(debug=False, threaded=True)
