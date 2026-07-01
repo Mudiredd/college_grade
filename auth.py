@@ -161,34 +161,8 @@ def verify_email(token):
 # ── Resend Verification ──────────────────────────────────
 @auth_bp.route('/resend-verification', methods=['POST'])
 def resend_verification():
-    from extensions import serializer
-    email = request.form.get('email', '').strip().lower()
-
-    try:
-        valid = validate_email(email)
-        email = valid.email
-    except EmailNotValidError:
-        flash('Invalid email address!', 'error')
-        return redirect(url_for('auth.signup'))
-
-    user = User.query.filter_by(email=email).first()
-    if not user:
-        flash('If that email exists, a verification link has been sent!', 'info')
-        return redirect(url_for('auth.login'))
-
-    if user.email_verified:
-        flash('Email already verified! Please login.', 'info')
-        return redirect(url_for('auth.login'))
-
-    token = serializer.dumps(email, salt='email-verify')
-    sent = send_verify_email(email, token)
-
-    if sent:
-        flash('Verification email resent! Check your inbox.', 'success')
-    else:
-        flash('Failed to send email. Try again later.', 'error')
-
-    return render_template('verify_email.html', email=email, sent=sent)
+    flash('Email verification is no longer required. You can login directly.', 'info')
+    return redirect(url_for('auth.login'))
 
 
 # ── Login ────────────────────────────────────────────────
