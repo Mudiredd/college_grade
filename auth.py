@@ -122,19 +122,13 @@ def signup():
             plan='free',
             password_changed_at=datetime.utcnow()
         )
+        user.email_verified = True
         db.session.add(user)
         db.session.commit()
 
-        # send verification email
-        from extensions import serializer
-        token = serializer.dumps(email, salt='email-verify')
-        try:
-            sent = send_verify_email(email, token)
-        except BaseException:
-            sent = False
-
-        flash('Account created! Check your email to verify your account.', 'success')
-        return render_template('verify_email.html', email=email, sent=sent)
+        login_user(user)
+        flash('Account created successfully! Welcome.', 'success')
+        return redirect(url_for('index'))
 
     return render_template('signup.html')
 
