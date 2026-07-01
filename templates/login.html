@@ -148,16 +148,6 @@
     {% endfor %}
   {% endwith %}
 
-  {% if needs_verify %}
-  <div class="flash-msg flash-info">
-    Your email <strong>{{ email }}</strong> is not verified.
-    <form method="POST" action="{{ url_for('auth.resend_verification') }}" style="display:inline;">
-      <input type="hidden" name="email" value="{{ email }}" />
-      <button type="submit" style="background:none;border:none;color:#d4405e;cursor:pointer;text-decoration:underline;font-size:0.85rem;">Resend verification</button>
-    </form>
-  </div>
-  {% endif %}
-
   <form method="POST" action="{{ url_for('auth.login') }}">
     <div class="form-group">
       <label>Email Address</label>
