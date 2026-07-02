@@ -155,12 +155,16 @@ def _delete_search_history(user_id, regd_no):
         with app.app_context():
             SearchHistory.query.filter_by(user_id=user_id, regd_no=regd_no).delete()
             db.session.commit()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.exception(f"Failed to delete search history for user {user_id}, regd {regd_no}: {e}")
 
 
 def _run_scrape(task_id, regd_no, password, user_id, plan):
     logger.info(f"Task {task_id}: scraping {regd_no} (plan={plan})")
+    with app.app_context():
+        hist = SearchHistory(user_id=user_id, regd_no=regd_no)
+        db.session.add(hist)
+        db.session.commit()
     try:
         if task_id in _task_cancel:
             _delete_search_history(user_id, regd_no)
@@ -1149,10 +1153,6 @@ def get_results():
     ok, msg = check_search_limit(current_user)
     if not ok:
         return jsonify({'error': msg}), 429
-
-    hist = SearchHistory(user_id=current_user.id, regd_no=regd_no)
-    db.session.add(hist)
-    db.session.commit()
 
     priority = get_plan_priority(current_user)
     task_id = _next_task_id()
